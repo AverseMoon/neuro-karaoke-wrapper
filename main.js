@@ -11,29 +11,42 @@ const { checkForUpdates } = require('./update-checker');
 // (Chromium GPU colour-management can drift over extended uptime)
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
+/** @type {boolean} */
 const isDev = !app.isPackaged;
 
 // Custom titlebar height in pixels
+/** @type {number} */
 const TITLEBAR_HEIGHT = 32;
 
 // Application state
+/** @type {Electron.BrowserWindow} */
 let mainWindow = null;
+/** @type {Electron.WebContentsView} */
 let titlebarView = null;
+/** @type {boolean} */
 let isQuitting = false;
+/** @type {boolean} */
 let trayAvailable = false;
 
 // Managers
+/** @type {DiscordManager} */
 let discordManager = null;
+/** @type {TrayManager} */
 let trayManager = null;
+/** @type {NeuroKaraokeAPI} */
 let apiClient = null;
 
 // Current state
+/** @type {any} */
 let currentPlaylistId = null;
 
 // One persistent WebContentsView per site (lazily created)
+/** @type {Map<string, Electron.WebContentsView>} */
 const views = {};
+/** @type {Electron.WebContentsView} */
 let currentView = null;
 
+/** @type {Map<string, string>} */
 const SITE_MAP = {
   neuro: config.URL.NEURO,
   evil: config.URL.EVIL,
@@ -235,6 +248,21 @@ function getOrCreateView(theme) {
   view.webContents.once('did-finish-load', () => {
     autoSelectTheme(view, THEME_LABELS[theme]);
   });
+  
+  // Hide titlebarView when DevTools is open
+  if (!process.env.DISABLE_CUSTOM_TITLEBAR) {
+    view.webContents.on('devtools-opened', () => {
+      if (titlebarView) {
+        mainWindow.contentView.removeChildView(titlebarView);
+      }
+    });
+    view.webContents.on('devtools-closed', () => {
+      if (titlebarView) {
+        mainWindow.contentView.removeChildView(titlebarView);
+        mainWindow.contentView.addChildView(titlebarView);
+      }
+    });
+  }
 
   views[theme] = view;
   return view;
@@ -305,48 +333,59 @@ function createWindow() {
     autoHideMenuBar: true,
     icon: iconPath
   });
-
+  
   // Hide menu bar
   mainWindow.setMenuBarVisibility(false);
-
-  // Create custom titlebar view (local-only HTML, safe to use nodeIntegration)
-  titlebarView = new WebContentsView({
-    webPreferences: {
-      nodeIntegration: true,
-      contextIsolation: false
-    }
-  });
-  titlebarView.setBackgroundColor('#00000000');
-  titlebarView.webContents.loadFile(path.join(__dirname, 'titlebar.html'));
-  mainWindow.contentView.addChildView(titlebarView);
+  
+  // Enable DevTools if env var is set
+  if (process.env.DEVTOOLS) mainWindow.setMenu(Menu.buildFromTemplate([{
+    label: "View", submenu: [{
+      label: "Toggle DevTools",
+      accelerator: process.platform == "darwin" ? "Cmd+Shift+I" : "Ctrl+Shift+I",
+      click: () => currentView?.webContents.toggleDevTools(),
+    }]
+  }]));
+  
+  if (!process.env.DISABLE_CUSTOM_TITLEBAR) {    
+    // Create custom titlebar view (local-only HTML, safe to use nodeIntegration)
+    titlebarView = new WebContentsView({
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false,
+      }
+    });
+    titlebarView.setBackgroundColor('#00000000');
+    titlebarView.webContents.loadFile(path.join(__dirname, 'titlebar.html'));
+    mainWindow.contentView.addChildView(titlebarView);
+    
+    // Send initial state once titlebar has loaded
+    titlebarView.webContents.once('did-finish-load', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        titlebarView.webContents.send('titlebar-maximize-change', mainWindow.isMaximized());
+      }
+    });
+    
+    // Notify titlebar of maximize/restore state changes
+    mainWindow.on('maximize', () => {
+      if (titlebarView && !titlebarView.webContents.isDestroyed()) {
+        titlebarView.webContents.send('titlebar-maximize-change', true);
+      }
+    });
+    mainWindow.on('unmaximize', () => {
+      if (titlebarView && !titlebarView.webContents.isDestroyed()) {
+        titlebarView.webContents.send('titlebar-maximize-change', false);
+      }
+    });
+  } else titlebarView = null; // Use native titlebar if one wasnt advertised
 
   // Load the last-used site, defaulting to neuro
   const { lastSite } = loadState();
   const initialTheme = SITE_MAP[lastSite] ? lastSite : 'neuro';
-
-  // Send initial state once titlebar has loaded
-  titlebarView.webContents.once('did-finish-load', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      titlebarView.webContents.send('titlebar-maximize-change', mainWindow.isMaximized());
-    }
-  });
   switchToSite(initialTheme);
 
   // Keep the active view filling the window on resize
   mainWindow.on('resize', () => {
     updateViewBounds();
-  });
-
-  // Notify titlebar of maximize/restore state changes
-  mainWindow.on('maximize', () => {
-    if (titlebarView && !titlebarView.webContents.isDestroyed()) {
-      titlebarView.webContents.send('titlebar-maximize-change', true);
-    }
-  });
-  mainWindow.on('unmaximize', () => {
-    if (titlebarView && !titlebarView.webContents.isDestroyed()) {
-      titlebarView.webContents.send('titlebar-maximize-change', false);
-    }
   });
 
   // Minimize to tray instead of closing (only if tray is available)
