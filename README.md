@@ -65,6 +65,15 @@ sudo rpm -i Neuro.Karaoke.Player-arm64.rpm
 ```
 
 #### Other Distributions
+##### Flatpak
+```bash
+# x86_64
+sudo flatpak install Neuro.Karaoke.Player-x86_64.flatpak
+
+# arm64
+sudo flatpak install Neuro.Karaoke.Player-arm64.flatpak
+```
+##### AppImage
 ```bash
 # x86_64
 chmod +x Neuro.Karaoke.Player-x86_64.AppImage
@@ -73,6 +82,11 @@ chmod +x Neuro.Karaoke.Player-x86_64.AppImage
 # arm64
 chmod +x Neuro.Karaoke.Player-arm64.AppImage
 ./Neuro.Karaoke.Player-arm64.AppImage
+```
+##### Arch/Manjaro (unofficial AUR package, arm64 has not been tested)
+```bash
+# use your AUR helper of choice
+yay -S neuro-karaoke-wrapper-git
 ```
 
 ### Android
