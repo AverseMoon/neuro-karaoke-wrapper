@@ -38,7 +38,9 @@ fun SongCard(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        cornerRadius = 12.dp
+        cornerRadius = 16.dp,
+        backgroundAlpha = 0.5f,
+        borderAlpha = 0.1f
     ) {
         Column {
             // Cover image with play button overlay
@@ -55,7 +57,7 @@ fun SongCard(
                     error = ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                     modifier = Modifier
                         .matchParentSize()
-                        .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
 
@@ -66,7 +68,7 @@ fun SongCard(
                         .padding(8.dp)
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
