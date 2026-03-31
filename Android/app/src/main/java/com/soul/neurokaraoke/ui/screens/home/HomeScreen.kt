@@ -50,7 +50,8 @@ import com.soul.neurokaraoke.ui.theme.DuetColor
 import com.soul.neurokaraoke.ui.theme.EvilColor
 import com.soul.neurokaraoke.ui.theme.NeuroColor
 import com.soul.neurokaraoke.ui.theme.OtherColor
-import com.soul.neurokaraoke.ui.theme.Surface
+import com.soul.neurokaraoke.ui.theme.CyberLabelStyle
+import com.soul.neurokaraoke.ui.theme.GradientText
 
 @Composable
 fun HomeScreen(
@@ -100,8 +101,7 @@ fun HomeScreen(
 
     LazyColumn(
         modifier = modifier
-            .fillMaxSize()
-            .padding(bottom = 80.dp),
+            .fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
@@ -415,7 +415,7 @@ private fun GenreRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(4.dp))
-            .background(Surface)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -444,18 +444,17 @@ private fun SectionHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
+        GradientText(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            fontWeight = FontWeight.Bold
         )
         if (onSeeAllClick != null) {
             TextButton(onClick = onSeeAllClick) {
                 Text(
-                    text = "See All",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "SEE ALL",
+                    style = CyberLabelStyle,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
                 )
             }
         }
