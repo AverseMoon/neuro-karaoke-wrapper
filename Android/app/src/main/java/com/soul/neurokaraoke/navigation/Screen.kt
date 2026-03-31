@@ -22,7 +22,7 @@ sealed class Screen(
     // Main navigation screens
     data object Home : Screen("home", "Home", Icons.Default.Home)
     data object Search : Screen("search", "Search", Icons.Default.Search)
-    data object Explore : Screen("explore", "Explore", Icons.Default.Explore)
+    data object Explore : Screen("explore", "Browse", Icons.Default.Explore)
     data object Artists : Screen("artists", "Artists", Icons.Default.Person)
     data object Setlists : Screen("setlists", "Karaoke Setlist", Icons.AutoMirrored.Filled.QueueMusic)
     data object Radio : Screen("radio", "Radio", Icons.Default.Radio)
@@ -31,7 +31,7 @@ sealed class Screen(
 
     // Library screens
     data object Downloads : Screen("downloads", "Downloads", Icons.Default.Download)
-    data object Favorites : Screen("favorites", "Favorites", Icons.Default.Favorite)
+    data object Favorites : Screen("favorites", "Library", Icons.Default.Favorite)
     data object Playlists : Screen("playlists", "Your Playlists", Icons.Default.LibraryMusic)
 
     // Detail screens
@@ -52,7 +52,16 @@ sealed class Screen(
     data object Player : Screen("player", "Now Playing")
 
     companion object {
-        val mainNavItems = listOf(Home, Search, Explore, Artists, Setlists, Radio, Soundbites, About)
+        // Bottom navigation bar tabs (max 5)
+        val bottomNavItems = listOf(Home, Search, Explore, Favorites, Radio)
+
+        // Items accessible from within Explore (browse) tab
+        val exploreSubItems = listOf(Setlists, Artists)
+
+        // Library sub-items (accessible from Favorites screen or profile)
         val libraryItems = listOf(Downloads, Favorites, Playlists)
+
+        // Legacy — kept for any remaining references during migration
+        val mainNavItems = listOf(Home, Search, Explore, Artists, Setlists, Radio, Soundbites, About)
     }
 }
