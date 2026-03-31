@@ -254,7 +254,7 @@ fun SearchScreen(
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
                                 .clickable { showSortMenu = true }
                                 .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -399,10 +399,6 @@ fun SearchScreen(
                     )
                 }
 
-                // Bottom spacing for mini player
-                item {
-                    Spacer(modifier = Modifier.height(100.dp))
-                }
             }
         }
     }
