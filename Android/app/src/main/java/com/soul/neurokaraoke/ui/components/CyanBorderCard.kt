@@ -31,21 +31,23 @@ fun CyanBorderCard(
 
     GlassCard(
         modifier = modifier.fillMaxWidth(),
-        cornerRadius = 12.dp
+        cornerRadius = 16.dp,
+        backgroundAlpha = 0.5f,
+        borderAlpha = 0.06f
     ) {
         Row {
             // Neon gradient left border with glow
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(3.dp)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(topStart = 12.dp, bottomStart = 12.dp))
+                    .clip(RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp))
                     .drawBehind {
                         // Glow effect on the strip
                         drawRoundRect(
-                            color = glowColor.copy(alpha = 0.3f),
-                            topLeft = Offset(-4f, 0f),
-                            size = Size(size.width + 8f, size.height),
+                            color = glowColor.copy(alpha = 0.2f),
+                            topLeft = Offset(-3f, 0f),
+                            size = Size(size.width + 6f, size.height),
                             cornerRadius = CornerRadius(4f)
                         )
                     }
