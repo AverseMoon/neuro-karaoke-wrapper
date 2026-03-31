@@ -78,7 +78,11 @@ function runSplashUpdater(theme, iconPath) {
       }
     }
 
+    let didResolve = false;
+
     function closeSplashAndContinue() {
+      if (didResolve) return;
+      didResolve = true;
       const elapsed = Date.now() - splashOpenedAt;
       const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
       setTimeout(() => {
@@ -130,7 +134,14 @@ function runSplashUpdater(theme, iconPath) {
     });
 
     // Start update check
-    autoUpdater.checkForUpdates().catch((err) => {
+    autoUpdater.checkForUpdates().then((result) => {
+      // In dev mode, electron-updater skips and returns null without emitting events
+      if (!result) {
+        setStatus('Launching...');
+        setProgress(-1);
+        closeSplashAndContinue();
+      }
+    }).catch((err) => {
       console.error('Failed to check for updates:', err.message);
       setStatus('Launching...');
       setProgress(-1);

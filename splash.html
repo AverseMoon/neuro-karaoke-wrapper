@@ -20,11 +20,12 @@
   }
 
   .splash {
+    position: relative;
     width: 100%;
     height: 100%;
     border: 2px solid rgba(255, 255, 255, 0.15);
     border-radius: 16px;
-    background: linear-gradient(135deg, #00bcd4 0%, #e53935 50%, #e040fb 100%);
+    background: linear-gradient(135deg, #00838f 0%, #8e1a1a 50%, #7b1fa2 100%);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -32,6 +33,21 @@
     gap: 16px;
     padding: 24px;
     overflow: hidden;
+  }
+
+  .splash::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 16px;
+    background: inherit;
+    filter: blur(30px);
+    z-index: 0;
+  }
+
+  .splash > * {
+    position: relative;
+    z-index: 1;
   }
 
   .loading-img {
