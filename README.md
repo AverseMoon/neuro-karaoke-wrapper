@@ -15,6 +15,7 @@ Check [wiki](https://github.com/AferilVT/neuro-karaoke-wrapper/wiki) for API doc
 - **Always on Top** — Pin the window above other applications
 - **Song Title Detection** — Shows current song in window title and tray tooltip
 - **Discord Rich Presence** — Shows your current song as an activity in Discord (requires login with Discord)
+- **Auto-Updater** — Automatic update detection with splash screen and progress bar
 
 ### Android
 - **Browse Setlists & Playlists** — Grid view with 2x2 cover previews, detailed playlist screens
@@ -26,9 +27,13 @@ Check [wiki](https://github.com/AferilVT/neuro-karaoke-wrapper/wiki) for API doc
 - **Equalizer & Bass Boost** — 5-band EQ with presets (Normal, Bass, Rock, Pop, Jazz, Classical)
 - **User Playlists** — Create custom playlists, add/remove songs, play all or shuffle
 - **Artists Browser** — Browse songs by original artist, sorted by cover count, with Last.fm images
+- **Library Tab** — Favorites, Playlists, and Downloads unified in one screen with user profile
+- **Local Music** — Import and play .mp3 files from your device
+- **Settings** — Crossfade, gapless playback, volume normalization, autoplay
+- **Download Notifications** — Progress and completion notifications for song downloads
 - **Playback Persistence** — Remembers last played song and position across app restarts
 - **Theme Support** — Neuro (cyan), Evil (pink), Duet (purple), and Auto (switches based on current song)
-- **Discord Sign-in** — OAuth2 flow prepared (pending backend integration)
+- **Discord Sign-in** — OAuth2 authentication with token exchange
 
 ## Installation
 
