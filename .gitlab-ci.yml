@@ -1,0 +1,161 @@
+stages:
+  - build
+  - build-android
+  - release
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "web"
+
+build-linux-x64:
+  stage: build
+  image: electronuserland/builder:20
+  script:
+    - yarn install --frozen-lockfile
+    - yarn build:linux --publish=never
+  artifacts:
+    paths:
+      - dist/*.deb
+      - dist/*.AppImage
+      - dist/*.rpm
+      - dist/*.flatpak
+      - dist/linux-unpacked/resources/app.asar
+    expire_in: 1 day
+
+build-linux-arm64:
+  stage: build
+  image: electronuserland/builder:20
+  script:
+    - yarn install --frozen-lockfile
+    - yarn build:linux --arm64 -c.linux.target="AppImage deb rpm" --publish=never
+  artifacts:
+    paths:
+      - dist/*.deb
+      - dist/*.AppImage
+      - dist/*.rpm
+      - dist/linux-arm64-unpacked/resources/app.asar
+    expire_in: 1 day
+
+build-windows:
+  stage: build
+  image: electronuserland/builder:wine
+  script:
+    - yarn install --frozen-lockfile
+    - yarn build:win --publish=never
+  artifacts:
+    paths:
+      - dist/*.exe
+    expire_in: 1 day
+
+build-android:
+  stage: build-android
+  image: thyrlian/android-sdk:latest
+  before_script:
+    - |
+      if [ -n "$KEYSTORE_BASE64" ]; then
+        echo "$KEYSTORE_BASE64" | base64 -d > Android/keystore.jks
+      fi
+  script:
+    - cd Android
+    - chmod +x gradlew
+    - ./gradlew assembleRelease
+    - cd ..
+    - mkdir -p releases
+    - cp Android/app/build/outputs/apk/release/*.apk releases/Neuro.Karaoke.Player.apk
+  variables:
+    RELEASE_STORE_FILE: keystore.jks
+    RELEASE_STORE_PASSWORD: $KEYSTORE_PASSWORD
+    RELEASE_KEY_ALIAS: $KEY_ALIAS
+    RELEASE_KEY_PASSWORD: $KEY_PASSWORD
+  artifacts:
+    paths:
+      - releases/Neuro.Karaoke.Player.apk
+    expire_in: 1 day
+
+draft-release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  needs:
+    - build-linux-x64
+    - build-linux-arm64
+    - build-windows
+    - build-android
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^v/
+    - if: $CI_PIPELINE_SOURCE == "web" && $VERSION != ""
+  before_script:
+    - apk add --no-cache curl coreutils
+  script:
+    - |
+      set -e
+      TAG="${VERSION:-$CI_COMMIT_TAG}"
+      mkdir -p renamed
+
+      # Windows
+      find dist/ -type f -name '*.exe' | head -1 | xargs -I{} cp {} renamed/Neuro.Karaoke.Setup.exe
+
+      # Linux x86_64
+      for ext in deb rpm AppImage flatpak; do
+        f=$(find dist/ -type f \( -name "*x86_64*.$ext" -o -name "*amd64*.$ext" -o -name "*x64*.$ext" \) | head -1)
+        [ -n "$f" ] && cp "$f" "renamed/Neuro.Karaoke.Player-x86_64.$ext"
+      done
+
+      # Linux arm64
+      for ext in deb rpm AppImage; do
+        f=$(find dist/ -type f \( -name "*arm64*.$ext" -o -name "*aarch64*.$ext" \) | head -1)
+        [ -n "$f" ] && cp "$f" "renamed/Neuro.Karaoke.Player-arm64.$ext"
+      done
+
+      # Android
+      cp releases/Neuro.Karaoke.Player.apk renamed/Neuro.Karaoke.Player.apk
+
+      # asar files
+      [ -f dist/linux-unpacked/resources/app.asar ] && cp dist/linux-unpacked/resources/app.asar renamed/Neuro.Karaoke.Player-x86_64.asar
+      [ -f dist/linux-arm64-unpacked/resources/app.asar ] && cp dist/linux-arm64-unpacked/resources/app.asar renamed/Neuro.Karaoke.Player-arm64.asar
+
+      # Verify critical assets exist
+      for required in "Neuro.Karaoke.Setup.exe" "Neuro.Karaoke.Player.apk"; do
+        [ -f "renamed/$required" ] || { echo "ERROR: missing $required"; exit 1; }
+      done
+
+      echo "Renamed assets:"
+      ls -lh renamed/
+
+      # Generate checksums
+      echo "## Checksums (SHA-256)" > release_description.md
+      echo "" >> release_description.md
+      echo "| File | SHA-256 |" >> release_description.md
+      echo "|------|---------|" >> release_description.md
+      for f in renamed/*; do
+        filename=$(basename "$f")
+        sha=$(sha256sum "$f" | awk '{print $1}')
+        echo "| \`$filename\` | \`$sha\` |" >> release_description.md
+      done
+
+      cat release_description.md
+
+      # Upload to generic package registry and build asset links JSON
+      echo '{"assets":{"links":[' > assets.json
+      first=true
+      for f in renamed/*; do
+        filename=$(basename "$f")
+        url="${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/release/${TAG}/${filename}"
+        curl --fail --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file "$f" "$url"
+        $first || echo ',' >> assets.json
+        printf '{"name":"%s","url":"%s","link_type":"package"}' "$filename" "$url" >> assets.json
+        first=false
+      done
+      echo ']}}' >> assets.json
+
+      # Create release
+      release-cli create \
+        --name "$TAG" \
+        --tag-name "$TAG" \
+        --description "$(cat release_description.md)" \
+        --assets-links-file assets.json
+  artifacts:
+    paths:
+      - renamed/*
+      - release_description.md
+    expire_in: 1 day
