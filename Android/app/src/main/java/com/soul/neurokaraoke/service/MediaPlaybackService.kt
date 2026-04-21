@@ -65,6 +65,7 @@ class MediaPlaybackService : MediaSessionService() {
                     .build(),
                 true // handleAudioFocus
             )
+            .setDeviceVolumeControlEnabled(true)
             .setHandleAudioBecomingNoisy(true)
             .build()
 
