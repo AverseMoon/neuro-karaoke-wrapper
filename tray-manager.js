@@ -117,8 +117,8 @@ class TrayManager {
         type: 'checkbox',
         label: 'Close to tray',
         checked: this.closeToTray,
-        click: () => {
-          this.onToggleCloseToTray?.(!this.closeToTray);
+        click: (menuItem) => {
+          this.onToggleCloseToTray?.(menuItem.checked);
         }
       },
       { type: 'separator' },
@@ -317,7 +317,7 @@ class TrayManager {
    */
   setCloseToTray(value) {
     this.closeToTray = value;
-    this.rebuildMenu();
+    if (this.tray) this.rebuildMenu();
   }
 
   /**
