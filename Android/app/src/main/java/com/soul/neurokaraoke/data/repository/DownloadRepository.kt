@@ -79,12 +79,41 @@ object DownloadRepository {
         if (this.context != null) return
         this.context = context.applicationContext
 
-        downloadsDir = File(context.filesDir, "downloads").also { it.mkdirs() }
+        // Use external files dir so downloads are accessible via file manager
+        val externalDir = context.getExternalFilesDir(null)
+        val baseDir = externalDir ?: context.filesDir // fallback if external unavailable
+
+        downloadsDir = File(baseDir, "downloads").also { it.mkdirs() }
         audioDir = File(downloadsDir, "audio").also { it.mkdirs() }
         coversDir = File(downloadsDir, "covers").also { it.mkdirs() }
         metadataFile = File(downloadsDir, "download_metadata.json")
 
+        // Migrate from old internal storage location
+        val oldDownloadsDir = File(context.filesDir, "downloads")
+        if (oldDownloadsDir.exists() && oldDownloadsDir != downloadsDir) {
+            migrateFromInternal(oldDownloadsDir)
+        }
+
         loadMetadata()
+    }
+
+    private fun migrateFromInternal(oldDir: File) {
+        val newDir = downloadsDir ?: return
+        try {
+            oldDir.walkTopDown().filter { it.isFile }.forEach { oldFile ->
+                val relativePath = oldFile.relativeTo(oldDir).path
+                val newFile = File(newDir, relativePath)
+                newFile.parentFile?.mkdirs()
+                if (!newFile.exists()) {
+                    oldFile.copyTo(newFile)
+                }
+                oldFile.delete()
+            }
+            // Clean up empty old directories
+            oldDir.walkBottomUp().filter { it.isDirectory }.forEach { it.delete() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun isDownloaded(songId: String): Boolean {
@@ -367,12 +396,24 @@ object DownloadRepository {
             val array = JSONArray(json)
             val songs = mutableListOf<DownloadedSong>()
 
+            val currentAudioDir = audioDir?.absolutePath ?: ""
+            var needsResave = false
+
             for (i in 0 until array.length()) {
                 val obj = array.getJSONObject(i)
-                val localAudioPath = obj.getString("localAudioPath")
+                var localAudioPath = obj.getString("localAudioPath")
 
-                // Skip entries where audio file no longer exists
-                if (!File(localAudioPath).exists()) continue
+                // Fix paths from old internal storage location
+                if (!File(localAudioPath).exists()) {
+                    val fileName = File(localAudioPath).name
+                    val migratedPath = File(currentAudioDir, fileName).absolutePath
+                    if (File(migratedPath).exists()) {
+                        localAudioPath = migratedPath
+                        needsResave = true
+                    } else {
+                        continue // File truly doesn't exist
+                    }
+                }
 
                 songs.add(
                     DownloadedSong(
@@ -388,7 +429,14 @@ object DownloadRepository {
                             Singer.NEURO
                         },
                         localAudioPath = localAudioPath,
-                        localCoverPath = obj.optString("localCoverPath").takeIf { it.isNotBlank() },
+                        localCoverPath = obj.optString("localCoverPath").takeIf { it.isNotBlank() }?.let { coverPath ->
+                            if (File(coverPath).exists()) coverPath
+                            else {
+                                val coverName = File(coverPath).name
+                                val migratedCover = File(coversDir, coverName)
+                                if (migratedCover.exists()) { needsResave = true; migratedCover.absolutePath } else null
+                            }
+                        },
                         fileSize = obj.optLong("fileSize", 0L),
                         downloadedAt = obj.optLong("downloadedAt", 0L)
                     )
@@ -396,6 +444,7 @@ object DownloadRepository {
             }
 
             _downloads.value = songs
+            if (needsResave) saveMetadata()
         } catch (e: Exception) {
             e.printStackTrace()
         }
