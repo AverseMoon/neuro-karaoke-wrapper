@@ -229,20 +229,18 @@ function setupViewEvents(view, theme) {
   });
 
   // Capture song ID from the playCount API request the Blazor app makes
-  if (theme === 'neuro') {
-    view.webContents.session.webRequest.onCompleted(
-      { urls: ['*://api.neurokaraoke.com/api/songs/playCount/*'] },
-      (details) => {
-        if (details.method !== 'PUT') return;
-        const match = details.url.match(/\/playCount\/([0-9a-f-]{36})$/i);
-        if (match) {
-          const songUrl = `https://www.neurokaraoke.com/song/${match[1]}`;
-          discordManager?.updateSongUrl(songUrl);
-        }
+  view.webContents.session.webRequest.onCompleted(
+    { urls: ['*://api.neurokaraoke.com/api/songs/playCount/*'] },
+    (details) => {
+      if (details.method !== 'PUT') return;
+      const match = details.url.match(/\/playCount\/([0-9a-f-]{36})$/i);
+      if (match) {
+        const baseUrl = config.URL[theme.toUpperCase()];
+        const songUrl = `${baseUrl}song/${match[1]}`;
+        discordManager?.updateSongUrl(songUrl);
       }
-    );
-
-  }
+    }
+  );
 }
 
 /**
@@ -347,6 +345,7 @@ function switchToSite(theme) {
   if (view === currentView) return;
 
   saveState({ lastSite: theme });
+  discordManager?.updateSite(theme);
 
   if (currentView) {
     // Pause audio, clear cache, and destroy the old view to free RAM
