@@ -1,5 +1,11 @@
 const DiscordRPC = require('discord-rpc');
 
+const SITE_CONFIG = {
+  neuro:  { label: 'Listen on Neuro Karaoke',  url: 'https://www.neurokaraoke.com/' },
+  evil:   { label: 'Listen on Evil Karaoke',   url: 'https://www.evilkaraoke.com/' },
+  smocus: { label: 'Listen on Smocus Karaoke', url: 'https://twinskaraoke.com/' }
+};
+
 /**
  * Manages Discord Rich Presence integration
  */
@@ -25,6 +31,7 @@ class DiscordManager {
     this.pendingPresenceForce = false;
     this.activityType = 2; // 0 = Playing, 2 = Listening
     this.songUrl = null; // Current page URL for Discord button
+    this.currentSite = 'neuro';
   }
 
   /**
@@ -140,6 +147,16 @@ class DiscordManager {
   }
 
   /**
+   * Update the active site
+   */
+  updateSite(site) {
+    if (this.currentSite === site) return;
+    this.currentSite = site;
+    this.songUrl = null;
+    this.updatePresence({ force: true });
+  }
+
+  /**
    * Update the current page URL for the Discord button
    */
   updateSongUrl(url) {
@@ -212,7 +229,8 @@ class DiscordManager {
         smallImageText: this.isPlaying ? 'Playing' : 'Paused',
         instance: false,
         buttons: [
-          { label: 'Listen on Neuro Karaoke', url: this.songUrl || 'https://www.neurokaraoke.com/' }
+          { label: (SITE_CONFIG[this.currentSite] || SITE_CONFIG.neuro).label,
+            url: this.songUrl || (SITE_CONFIG[this.currentSite] || SITE_CONFIG.neuro).url }
         ]
       };
 
