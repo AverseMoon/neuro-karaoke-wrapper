@@ -50,7 +50,8 @@ let currentView = null;
 const SITE_MAP = {
   neuro: config.URL.NEURO,
   evil: config.URL.EVIL,
-  smocus: config.URL.SMOCUS
+  smocus: config.URL.SMOCUS,
+  ...(isDev && { test: config.URL.TEST })
 };
 
 // Set app ID for Windows taskbar grouping
@@ -85,6 +86,13 @@ function saveState(patch) {
   const state = { ...loadState(), ...patch };
   fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
 }
+
+function setCloseToTray(value) {
+  closeToTray = value;
+  saveState({ closeToTray: value });
+}
+
+let closeToTray = loadState().closeToTray === true;
 
 /**
  * Get asset path (works in both dev and production)
@@ -145,6 +153,7 @@ function setupViewEvents(view, theme) {
     'cn.neurokaraoke.com',
     'discord.com', 'www.discord.com'
   ]);
+  if (isDev) allowedHostnames.add('test.neurokaraoke.com');
 
   const isSafeExternalUrl = (u) => {
     try {
@@ -432,16 +441,16 @@ function createWindow() {
     updateViewBounds();
   });
 
-  // Minimize to tray instead of closing (only if tray is available)
   mainWindow.on('close', (event) => {
     if (!isQuitting) {
-      // On Linux without tray support, quit the app instead of hiding
-      if (process.platform === 'linux' && !trayAvailable) {
+      if (closeToTray && trayAvailable) {
+        event.preventDefault();
+        mainWindow.hide();
+      } else {
+        // Explicitly quit so the app doesn't linger in the tray on Windows/macOS
         isQuitting = true;
-        return; // Allow the close to proceed
+        handleQuit();
       }
-      event.preventDefault();
-      mainWindow.hide();
     }
   });
 
