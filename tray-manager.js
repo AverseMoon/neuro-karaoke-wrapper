@@ -14,16 +14,20 @@ class TrayManager {
     this.sleepTickInterval = null;
     this.onSwitchSite = null;
     this.onRefresh = null;
+    this.closeToTray = false;
+    this.onToggleCloseToTray = null;
   }
 
   /**
    * Create the system tray icon
    */
-  create(mainWindow, onQuit, onSwitchSite = null, onRefresh = null) {
+  create(mainWindow, onQuit, onSwitchSite = null, onRefresh = null, closeToTray = false, onToggleCloseToTray = null) {
     this.mainWindow = mainWindow;
     this.onQuit = onQuit;
     this.onSwitchSite = onSwitchSite;
     this.onRefresh = onRefresh;
+    this.closeToTray = closeToTray;
+    this.onToggleCloseToTray = onToggleCloseToTray;
     let icon = this.iconPath;
     if (process.platform === 'darwin') {
       const img = nativeImage.createFromPath(this.iconPath);
@@ -95,12 +99,27 @@ class TrayManager {
           {
             label: 'Smocus',
             click: () => { this.showWindow(); this.onSwitchSite?.('smocus'); }
-          }
+          },
+          ...(!app.isPackaged ? [
+            { type: 'separator' },
+            {
+              label: 'Test Site (dev)',
+              click: () => { this.showWindow(); this.onSwitchSite?.('test'); }
+            }
+          ] : [])
         ]
       },
       {
         label: 'Refresh',
         click: () => { this.onRefresh?.(); }
+      },
+      {
+        type: 'checkbox',
+        label: 'Close to tray',
+        checked: this.closeToTray,
+        click: () => {
+          this.onToggleCloseToTray?.(!this.closeToTray);
+        }
       },
       { type: 'separator' },
       {
@@ -291,6 +310,14 @@ class TrayManager {
     if (this.tray) {
       this.tray.setToolTip(text);
     }
+  }
+
+  /**
+   * Set close to tray setting and rebuild menu
+   */
+  setCloseToTray(value) {
+    this.closeToTray = value;
+    this.rebuildMenu();
   }
 
   /**

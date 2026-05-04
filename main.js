@@ -640,6 +640,9 @@ async function initialize() {
       if (currentView && !currentView.webContents.isDestroyed()) {
         currentView.webContents.reloadIgnoringCache();
       }
+    }, closeToTray, (value) => {
+      setCloseToTray(value);
+      trayManager.setCloseToTray(value);
     });
     trayAvailable = trayManager.isAvailable();
   } catch (error) {
