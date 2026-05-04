@@ -87,12 +87,12 @@ function saveState(patch) {
   fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
 }
 
+let closeToTray = loadState().closeToTray === true;
+
 function setCloseToTray(value) {
   closeToTray = value;
   saveState({ closeToTray: value });
 }
-
-let closeToTray = loadState().closeToTray === true;
 
 /**
  * Get asset path (works in both dev and production)
@@ -442,15 +442,9 @@ function createWindow() {
   });
 
   mainWindow.on('close', (event) => {
-    if (!isQuitting) {
-      if (closeToTray && trayAvailable) {
-        event.preventDefault();
-        mainWindow.hide();
-      } else {
-        // Explicitly quit so the app doesn't linger in the tray on Windows/macOS
-        isQuitting = true;
-        handleQuit();
-      }
+    if (!isQuitting && closeToTray && trayAvailable) {
+      event.preventDefault();
+      mainWindow.hide();
     }
   });
 
@@ -670,12 +664,7 @@ async function initialize() {
 app.whenReady().then(initialize);
 
 app.on('window-all-closed', () => {
-  // On macOS, keep running in tray (standard behavior)
-  // On Linux without tray, quit the app
-  // On Windows, keep running in tray
-  if (process.platform === 'linux' && !trayAvailable) {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on('activate', () => {
