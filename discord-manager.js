@@ -150,6 +150,10 @@ class DiscordManager {
    * Update the active site
    */
   updateSite(site) {
+    if (!SITE_CONFIG[site]) {
+      console.warn(`DiscordManager.updateSite: unknown site "${site}"`);
+      return;
+    }
     if (this.currentSite === site) return;
     this.currentSite = site;
     this.songUrl = null;
@@ -160,10 +164,12 @@ class DiscordManager {
    * Update the current page URL for the Discord button
    */
   updateSongUrl(url) {
-    if (url && url !== this.songUrl) {
-      this.songUrl = url;
-      this.updatePresence({ force: true });
-    }
+    if (!url) return;
+    const siteBase = SITE_CONFIG[this.currentSite].url;
+    if (!url.startsWith(siteBase)) return;
+    if (url === this.songUrl) return;
+    this.songUrl = url;
+    this.updatePresence({ force: true });
   }
 
   updateAlbumArtCredit(credit) {
@@ -218,7 +224,8 @@ class DiscordManager {
 
       const detailsText = this.currentSong;
       const stateText = this.currentArtist || 'Listening';
-      
+      const cfg = SITE_CONFIG[this.currentSite];
+
       const activity = {
         type: this.activityType,
         details: truncate(detailsText, 128),
@@ -229,8 +236,7 @@ class DiscordManager {
         smallImageText: this.isPlaying ? 'Playing' : 'Paused',
         instance: false,
         buttons: [
-          { label: (SITE_CONFIG[this.currentSite] || SITE_CONFIG.neuro).label,
-            url: this.songUrl || (SITE_CONFIG[this.currentSite] || SITE_CONFIG.neuro).url }
+          { label: cfg.label, url: this.songUrl || cfg.url }
         ]
       };
 
