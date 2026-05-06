@@ -30,7 +30,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.soul.neurokaraoke.R
 import com.soul.neurokaraoke.data.PlaylistCatalog
 import com.soul.neurokaraoke.data.SongCache
 import com.soul.neurokaraoke.data.api.NeuroKaraokeApi
@@ -116,37 +119,20 @@ fun SetupScreen(
                 }.awaitAll()
             }
 
-            // Step 3: Load all songs from all playlists in parallel
+            // Step 3: Fetch every song server-side in one call
             statusText = "Loading songs..."
-            progress = 0.3f
+            progress = 0.5f
+            currentPlaylist = ""
 
-            val allSongs = mutableListOf<Song>()
-            val playlistCount = playlists.size
-            var completedPlaylists = 0
+            val fetched = repository.getAllSongs().getOrNull() ?: emptyList()
+            songsLoaded = fetched.size
 
-            coroutineScope {
-                playlists.map { playlist ->
-                    async {
-                        currentPlaylist = playlist.title.ifEmpty { "Playlist ${playlist.id.take(8)}" }
-                        repository.getPlaylistSongs(playlist.id).onSuccess { songs ->
-                            synchronized(allSongs) {
-                                allSongs.addAll(songs)
-                                songsLoaded = allSongs.size
-                            }
-                        }
-                        completedPlaylists++
-                        progress = 0.3f + (0.6f * completedPlaylists / playlistCount)
-                    }
-                }.awaitAll()
-            }
-
-            // Step 4: Remove duplicates and cache
-            statusText = "Caching ${allSongs.size} songs..."
+            // Step 4: Cache
+            statusText = "Caching ${fetched.size} songs..."
             progress = 0.9f
-            val uniqueSongs = allSongs.distinctBy { it.id }
-            totalSongs = uniqueSongs.size
+            totalSongs = fetched.size
 
-            songCache.cacheSongs(uniqueSongs)
+            songCache.cacheSongs(fetched, playlists.size)
 
             // Step 5: Complete
             statusText = "Setup complete!"
@@ -187,9 +173,10 @@ fun SetupScreen(
                 .align(Alignment.Center)
         ) {
             // App logo with neon glow frame
-            AsyncImage(
-                model = "https://storage.neurokaraoke.com/image/neuro-evil.webp",
+            Image(
+                painter = painterResource(id = R.mipmap.neuro_foreground),
                 contentDescription = "Neuro Karaoke",
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(120.dp)
                     .ambientGlow(

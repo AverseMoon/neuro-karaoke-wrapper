@@ -27,6 +27,7 @@ import com.soul.neurokaraoke.ui.components.AddToPlaylistSheet
 import com.soul.neurokaraoke.ui.components.BottomNavBar
 import com.soul.neurokaraoke.ui.components.MiniPlayer
 import com.soul.neurokaraoke.ui.components.NeuroTopBar
+import com.soul.neurokaraoke.ui.components.PairCarDialog
 import com.soul.neurokaraoke.data.model.Song
 import com.soul.neurokaraoke.data.repository.FavoritesRepository
 import com.soul.neurokaraoke.data.repository.UserPlaylistRepository
@@ -59,6 +60,7 @@ fun MainScreen(
     val downloadedSongs by downloadViewModel.downloads.collectAsState()
     val downloadProgress by downloadViewModel.downloadProgress.collectAsState()
     var showFullPlayer by remember { mutableStateOf(false) }
+    var showPairCarDialog by remember { mutableStateOf(false) }
 
     val playerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var songToAddToPlaylist by remember { mutableStateOf<Song?>(null) }
@@ -89,18 +91,11 @@ fun MainScreen(
     Scaffold(
         topBar = {
             NeuroTopBar(
-                onProfileClick = {
-                    if (authState.isLoggedIn) {
-                        navController.navigate(Screen.About.route) {
-                            popUpTo(Screen.Home.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    } else {
-                        context.startActivity(authViewModel.getSignInIntent())
-                    }
-                },
-                avatarUrl = authState.user?.avatarUrl
+                isLoggedIn = authState.isLoggedIn,
+                avatarUrl = authState.user?.avatarUrl,
+                onProfileClick = { context.startActivity(authViewModel.getSignInIntent()) },
+                onPairCar = { showPairCarDialog = true },
+                onSignOut = { authViewModel.logout() }
             )
         },
         bottomBar = {
@@ -113,17 +108,7 @@ fun MainScreen(
                     onPlayPauseClick = { playerViewModel.togglePlayPause() },
                     onPreviousClick = { playerViewModel.playPrevious() },
                     onNextClick = { playerViewModel.playNext() },
-                    onExpandClick = {
-                        if (playerState.isRadioMode) {
-                            navController.navigate(Screen.Radio.route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        } else {
-                            showFullPlayer = true
-                        }
-                    },
+                    onExpandClick = { showFullPlayer = true },
                     sleepTimerActive = playerState.sleepTimerEndTimeMs != null || playerState.sleepTimerEndOfSong,
                     isRadioMode = playerState.isRadioMode,
                     onRadioStopClick = { playerViewModel.stopRadio() }
@@ -263,7 +248,9 @@ fun MainScreen(
                 onSetSleepTimerEndOfSong = { playerViewModel.setSleepTimerEndOfSong() },
                 isFavorite = favoritesRepository.isFavorite(currentSong.id, currentSong.audioUrl),
                 onToggleFavorite = { favoritesRepository.toggleFavorite(currentSong, authViewModel.getAccessToken()) },
-                onAddToPlaylist = { songToAddToPlaylist = currentSong }
+                onAddToPlaylist = { songToAddToPlaylist = currentSong },
+                isRadioMode = playerState.isRadioMode,
+                radioListenerCount = playerState.radioListenerCount
             )
         }
     }
@@ -275,5 +262,15 @@ fun MainScreen(
             repository = userPlaylistRepository,
             onDismiss = { songToAddToPlaylist = null }
         )
+    }
+
+    // Pair Car dialog
+    if (showPairCarDialog) {
+        val jwt = authViewModel.getAccessToken()
+        if (jwt != null) {
+            PairCarDialog(jwt = jwt, onDismiss = { showPairCarDialog = false })
+        } else {
+            showPairCarDialog = false
+        }
     }
 }

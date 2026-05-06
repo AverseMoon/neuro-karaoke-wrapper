@@ -33,6 +33,23 @@ class SongRepository(
     }
 
     /**
+     * Fetch every song from server via POST /api/songs.
+     * Each item already carries server UUID — no songIdMap lookup needed.
+     */
+    suspend fun getAllSongs(): Result<List<Song>> {
+        val result = api.fetchAllSongs()
+        if (result.isFailure) return Result.failure(result.exceptionOrNull()!!)
+        val entries = result.getOrThrow()
+        val songs = entries.mapIndexed { index, entry ->
+            entry.apiSong.toSong(playlistId = "all", index = index).copy(
+                id = entry.id,
+                duration = entry.durationSeconds * 1000L
+            )
+        }
+        return Result.success(songs)
+    }
+
+    /**
      * Find a specific song in a playlist
      */
     fun findSong(playlistId: String, title: String, artist: String? = null): Song? {

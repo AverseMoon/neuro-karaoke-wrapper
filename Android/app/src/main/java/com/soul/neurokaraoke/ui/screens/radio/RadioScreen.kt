@@ -20,7 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -296,7 +296,7 @@ fun RadioScreen(
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
-                items(upcoming, key = { it.id }) { song ->
+                itemsIndexed(upcoming, key = { i, s -> "up_${i}_${s.id}" }) { _, song ->
                     RadioSongCard(song = song)
                 }
             }
@@ -313,7 +313,7 @@ fun RadioScreen(
                         modifier = Modifier.padding(vertical = 8.dp)
                     )
                 }
-                items(history, key = { it.id }) { song ->
+                itemsIndexed(history, key = { i, s -> "hist_${i}_${s.id}" }) { _, song ->
                     RadioSongCard(song = song)
                 }
             }

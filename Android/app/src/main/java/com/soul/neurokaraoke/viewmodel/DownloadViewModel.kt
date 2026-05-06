@@ -9,7 +9,6 @@ import com.soul.neurokaraoke.data.repository.DownloadedSong
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 
 class DownloadViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -26,9 +25,9 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     fun isDownloaded(songId: String): Boolean = DownloadRepository.isDownloaded(songId)
 
     fun downloadSong(song: Song) {
-        viewModelScope.launch {
-            DownloadRepository.downloadSong(song)
-        }
+        // Use repository's process-scoped queue so downloads are independent of
+        // ViewModel lifecycle and a single stuck request can't block subsequent ones.
+        DownloadRepository.enqueueDownload(song)
     }
 
     fun removeSong(songId: String) {
@@ -40,11 +39,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun downloadPlaylistSongs(songs: List<Song>) {
-        viewModelScope.launch {
-            songs.forEach { song ->
-                launch { DownloadRepository.downloadSong(song) }
-            }
-        }
+        songs.forEach { song -> DownloadRepository.enqueueDownload(song) }
     }
 
     fun getTotalSizeFormatted(): String {

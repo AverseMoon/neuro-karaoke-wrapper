@@ -112,8 +112,9 @@ class RadioApi {
             "$IMAGE_BASE/$IMAGE_ACCOUNT/$cloudflareId/public"
         } else ""
 
-        val artCredit = coverArtObj?.optString("credit", "")
-            ?.takeIf { it.isNotBlank() }
+        val artCredit = coverArtObj?.takeIf { !it.isNull("credit") }
+            ?.optString("credit", "")
+            ?.takeIf { it.isNotBlank() && it != "null" }
 
         val originalArtists = buildList {
             val arr = obj.optJSONArray("originalArtists")

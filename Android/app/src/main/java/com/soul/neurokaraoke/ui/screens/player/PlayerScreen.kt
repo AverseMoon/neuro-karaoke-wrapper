@@ -2,6 +2,11 @@ package com.soul.neurokaraoke.ui.screens.player
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -46,7 +51,9 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -124,6 +131,8 @@ fun PlayerScreen(
     isFavorite: Boolean = false,
     onToggleFavorite: () -> Unit = {},
     onAddToPlaylist: () -> Unit = {},
+    isRadioMode: Boolean = false,
+    radioListenerCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -142,12 +151,16 @@ fun PlayerScreen(
     // Use seek progress while dragging, otherwise use actual progress
     val displayProgress = if (isSeeking) seekProgress else progress
 
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.statusBars)
-            .padding(16.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         // Top bar
@@ -172,6 +185,7 @@ fun PlayerScreen(
             )
 
             Row {
+                if (!isRadioMode) {
                 // Download button
                 IconButton(onClick = { if (!isDownloaded && downloadProgress == null) onDownloadClick() }) {
                     when {
@@ -227,6 +241,7 @@ fun PlayerScreen(
                         }
                     }
                 }
+                } // end !isRadioMode
 
                 IconButton(onClick = { showEqualizer = true }) {
                     Icon(
@@ -238,13 +253,18 @@ fun PlayerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 32.dp))
 
-        // Album art with subtle border
-        Box(
-            modifier = Modifier
+        // Album art — smaller in landscape so controls fit on screen
+        val artModifier = if (isLandscape) {
+            Modifier.size(180.dp)
+        } else {
+            Modifier
                 .fillMaxWidth(0.85f)
                 .aspectRatio(1f)
+        }
+        Box(
+            modifier = artModifier
                 .gradientBorder(
                     colors = NeonTheme.colors.borderColors,
                     borderWidth = 1.dp,
@@ -354,6 +374,55 @@ fun PlayerScreen(
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+
+        if (isRadioMode) {
+            RadioLiveIndicator(
+                isPlaying = isPlaying,
+                listenerCount = radioListenerCount
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Single play/pause button (acts as Stop/Listen)
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .then(
+                        if (isPlaying) Modifier.pulsingGlow(
+                            color = NeonTheme.colors.glowColor,
+                            baseRadius = 12.dp,
+                            cornerRadius = 40.dp
+                        ) else Modifier
+                    )
+                    .clip(CircleShape)
+                    .background(
+                        if (isPlaying) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                IconButton(
+                    onClick = onPlayPauseClick,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    Icon(
+                        imageVector = if (isPlaying) Icons.Default.Stop else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Stop" else "Listen",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = if (isPlaying) "STOP LISTENING" else "LISTEN LIVE",
+                style = CyberLabelStyle,
+                color = if (isPlaying) MaterialTheme.colorScheme.error
+                        else MaterialTheme.colorScheme.primary
+            )
+        } else {
 
         // Progress bar
         Column(
@@ -496,6 +565,7 @@ fun PlayerScreen(
                 color = MaterialTheme.colorScheme.primary
             )
         }
+        } // end !isRadioMode controls
     }
 
     // Lyrics bottom sheet
@@ -1215,6 +1285,57 @@ private fun QueueItem(
     }
 
     Spacer(modifier = Modifier.height(4.dp))
+}
+
+@Composable
+private fun RadioLiveIndicator(isPlaying: Boolean, listenerCount: Int) {
+    val transition = rememberInfiniteTransition(label = "live")
+    val pulse by transition.animateFloat(
+        initialValue = 0.4f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "pulse"
+    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(
+                    if (isPlaying) MaterialTheme.colorScheme.error.copy(alpha = pulse)
+                    else MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                )
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "LIVE",
+            style = CyberLabelStyle,
+            color = MaterialTheme.colorScheme.error,
+            fontWeight = FontWeight.Bold
+        )
+        if (listenerCount > 0) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Icon(
+                imageVector = Icons.Default.Headphones,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "$listenerCount listening",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 private fun formatTime(millis: Long): String {

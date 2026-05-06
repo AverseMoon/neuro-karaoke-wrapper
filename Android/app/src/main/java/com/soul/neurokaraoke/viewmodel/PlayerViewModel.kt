@@ -18,6 +18,8 @@ import com.soul.neurokaraoke.data.model.Artist
 import com.soul.neurokaraoke.data.model.Playlist
 import com.soul.neurokaraoke.data.model.Singer
 import com.soul.neurokaraoke.data.model.Song
+import com.soul.neurokaraoke.data.repository.AuthRepository
+import com.soul.neurokaraoke.data.repository.SettingsRepository
 import com.soul.neurokaraoke.data.repository.SongRepository
 import com.soul.neurokaraoke.service.MediaPlaybackService
 import com.google.common.util.concurrent.ListenableFuture
@@ -57,7 +59,10 @@ data class PlayerUiState(
     val apiArtists: List<Artist> = emptyList(),
     val isLoadingArtists: Boolean = false,
     val isRadioMode: Boolean = false,
-    val radioListenerCount: Int = 0
+    val radioListenerCount: Int = 0,
+    // True when the current queue is a user-supplied set (downloads, user playlist, etc.)
+    // and end-of-queue should NOT pull random songs from all playlists.
+    val isCustomQueue: Boolean = false
 )
 
 enum class RepeatMode {
@@ -73,7 +78,11 @@ class PlayerViewModel(
     private val songCache: SongCache = SongCache(application)
     private val api: NeuroKaraokeApi = NeuroKaraokeApi()
     private val radioApi: RadioApi = RadioApi()
+    private val authRepository: AuthRepository = AuthRepository(application)
     private val prefs = application.getSharedPreferences("playback_state", Context.MODE_PRIVATE)
+    private val guestId: String = android.provider.Settings.Secure.getString(
+        application.contentResolver, android.provider.Settings.Secure.ANDROID_ID
+    ) ?: java.util.UUID.randomUUID().toString()
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
@@ -90,7 +99,16 @@ class PlayerViewModel(
     @Volatile
     private var isCleared = false
 
+    // Crossfade state
+    private var crossfadeJob: Job? = null
+    private var isCrossfading = false
+
+    // Play count reporting — track which songs already reported this session
+    private val playCountReported = mutableSetOf<String>()
+
     init {
+        // Ensure settings are initialized
+        SettingsRepository.initialize(application)
         // Restore last played song immediately (before anything else)
         // so the mini player shows the correct song instantly
         restorePlaybackState()
@@ -100,6 +118,8 @@ class PlayerViewModel(
         loadCachedSongs()
         // Initialize media controller connection
         initializeMediaController()
+        // Observe normalize volume setting
+        observeNormalizeVolume()
     }
 
     /**
@@ -117,6 +137,17 @@ class PlayerViewModel(
                         allSongs = cachedSongs
                     )
                 }
+            }
+        }
+    }
+
+    /**
+     * Observe the normalize volume setting and toggle LoudnessEnhancer accordingly.
+     */
+    private fun observeNormalizeVolume() {
+        viewModelScope.launch {
+            SettingsRepository.normalizeVolume.collect { enabled ->
+                com.soul.neurokaraoke.audio.EqualizerManager.setNormalizeVolume(enabled)
             }
         }
     }
@@ -275,9 +306,22 @@ class PlayerViewModel(
                 if (isRestoringState || _uiState.value.isRadioMode) return
 
                 mediaItem?.mediaId?.let { mediaId ->
-                    val song = _uiState.value.songs.find { it.id == mediaId }
+                    val song = _uiState.value.queue.find { it.id == mediaId }
+                        ?: _uiState.value.songs.find { it.id == mediaId }
                         ?: _uiState.value.allSongs.find { it.id == mediaId }
-                    if (song != null && song.id != _uiState.value.currentSong?.id) {
+                        ?: mediaItem.mediaMetadata.let { md ->
+                            // Fallback: synthesize a Song from MediaItem metadata so the UI
+                            // (lyrics + cover) updates even when the song isn't cached locally.
+                            Song(
+                                id = mediaId,
+                                title = md.title?.toString() ?: "Unknown",
+                                artist = md.artist?.toString() ?: "",
+                                coverUrl = md.artworkUri?.toString() ?: "",
+                                audioUrl = mediaItem.localConfiguration?.uri?.toString() ?: "",
+                                singer = _uiState.value.currentSong?.singer ?: Singer.NEURO
+                            )
+                        }
+                    if (song.id != _uiState.value.currentSong?.id) {
                         _uiState.value = _uiState.value.copy(
                             currentSong = song,
                             progress = 0f,
@@ -347,6 +391,31 @@ class PlayerViewModel(
                     duration = duration
                 )
 
+                // Report play count once song has played for 30+ seconds
+                val songForPlayCount = _uiState.value.currentSong
+                if (songForPlayCount != null &&
+                    !_uiState.value.isRadioMode &&
+                    position >= 30_000L &&
+                    playCountReported.add(songForPlayCount.id)
+                ) {
+                    val sid = songForPlayCount.id
+                    val token = authRepository.currentUser.value?.apiToken
+                        ?: authRepository.currentUser.value?.accessToken
+                    viewModelScope.launch { api.reportPlayCount(sid, token, guestId) }
+                }
+
+                // Crossfade: detect when near end of song and trigger fade + next
+                val crossfadeSec = SettingsRepository.crossfadeDuration.value
+                if (crossfadeSec > 0 && duration > 0 && !isCrossfading && !_uiState.value.isRadioMode) {
+                    val crossfadeMs = crossfadeSec * 1000L
+                    val remaining = duration - position
+                    // Trigger when remaining time = half crossfade so total fade
+                    // duration = crossfadeMs (half outgoing, half incoming).
+                    if (remaining in 1..(crossfadeMs / 2) && controller.hasNextMediaItem()) {
+                        startCrossfade(crossfadeMs, remaining)
+                    }
+                }
+
                 // Periodically save state every 30 seconds for position persistence
                 val now = System.currentTimeMillis()
                 if (now - lastPeriodicSaveTime >= 30_000L) {
@@ -359,12 +428,55 @@ class PlayerViewModel(
         }
     }
 
+    /**
+     * Crossfade: fade out current song volume over the remaining time,
+     * then skip to next song and fade volume back in.
+     */
+    private fun startCrossfade(crossfadeMs: Long, remainingMs: Long) {
+        isCrossfading = true
+        crossfadeJob?.cancel()
+        crossfadeJob = viewModelScope.launch {
+            val controller = mediaController ?: run { isCrossfading = false; return@launch }
+            val steps = 16
+            // Use the smaller of (remainingMs, half crossfade) so we never run past
+            // the song's natural end while fading out.
+            val outDelay = (remainingMs.coerceAtMost(crossfadeMs / 2) / steps).coerceAtLeast(8L)
+            val inDelay = ((crossfadeMs / 2) / steps).coerceAtLeast(8L)
+
+            // Fade outgoing track
+            for (i in steps - 1 downTo 0) {
+                if (!isActive) break
+                controller.volume = i.toFloat() / steps
+                delay(outDelay)
+            }
+
+            // Hop to next at zero volume — perceived overlap because next track
+            // starts immediately at low volume.
+            if (isActive && controller.hasNextMediaItem()) {
+                controller.seekToNextMediaItem()
+            }
+
+            // Fade incoming track up
+            for (i in 1..steps) {
+                if (!isActive) break
+                controller.volume = i.toFloat() / steps
+                delay(inDelay)
+            }
+
+            controller.volume = 1f
+            isCrossfading = false
+        }
+    }
+
     private fun stopProgressUpdates() {
         progressJob?.cancel()
         progressJob = null
     }
 
     private fun handleSongEnded() {
+        // Crossfade already handled the transition — don't double-skip
+        if (isCrossfading) return
+
         // Check sleep timer "end of song" mode
         if (_uiState.value.sleepTimerEndOfSong) {
             _uiState.value = _uiState.value.copy(sleepTimerEndOfSong = false)
@@ -372,6 +484,19 @@ class PlayerViewModel(
             return
         }
 
+        // When gapless is off, insert a brief pause before the next song
+        val gapless = SettingsRepository.gaplessPlayback.value
+        if (!gapless) {
+            viewModelScope.launch {
+                delay(500L) // Half-second gap between songs
+                advanceAfterSongEnded()
+            }
+        } else {
+            advanceAfterSongEnded()
+        }
+    }
+
+    private fun advanceAfterSongEnded() {
         when (_uiState.value.repeatMode) {
             RepeatMode.ONE -> {
                 mediaController?.seekTo(0)
@@ -437,11 +562,19 @@ class PlayerViewModel(
      * Play a specific song
      */
     fun playSong(song: Song, startPosition: Long = 0L) {
+        // Cancel any in-progress crossfade and restore volume
+        crossfadeJob?.cancel()
+        isCrossfading = false
+        mediaController?.volume = 1f
+
         // Stop radio mode if active
         if (_uiState.value.isRadioMode) {
             radioPollingJob?.cancel()
             _uiState.value = _uiState.value.copy(isRadioMode = false, radioListenerCount = 0)
         }
+
+        // Reset play-count guard so the same song can be re-counted in a new session
+        playCountReported.remove(song.id)
 
         if (song.audioUrl.isBlank()) {
             _uiState.value = _uiState.value.copy(
@@ -493,7 +626,11 @@ class PlayerViewModel(
                     MediaMetadata.Builder()
                         .setTitle(s.title)
                         .setArtist("${s.artist} • ${s.coverArtist}")
+                        .setAlbumTitle(s.coverArtist)
                         .setArtworkUri(android.net.Uri.parse(s.coverUrl))
+                        .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                        .setIsBrowsable(false)
+                        .setIsPlayable(true)
                         .build()
                 )
                 .build()
@@ -510,7 +647,10 @@ class PlayerViewModel(
      */
     fun playSongById(songId: String) {
         val song = _uiState.value.songs.find { it.id == songId }
-        song?.let { playSong(it) }
+        song?.let {
+            _uiState.value = _uiState.value.copy(isCustomQueue = false)
+            playSong(it)
+        }
     }
 
     /**
@@ -594,9 +734,21 @@ class PlayerViewModel(
             controller.seekToNextMediaItem()
         } else if (wrapAround && controller.mediaItemCount > 0) {
             controller.seekTo(0, 0L)
-        } else {
-            // Queue ended and not looping - play random songs from across all playlists
+        } else if (_uiState.value.isCustomQueue) {
+            // Custom queue (downloads / user playlist / explore) — wrap to start or stop,
+            // do NOT pull songs from across all playlists into the queue.
+            if (controller.mediaItemCount > 0) {
+                controller.seekTo(0, 0L)
+                if (!SettingsRepository.autoPlay.value) controller.pause()
+            } else {
+                controller.pause()
+            }
+        } else if (SettingsRepository.autoPlay.value) {
+            // Queue ended — autoplay random songs from across all playlists
             playRandomSongFromAllPlaylists()
+        } else {
+            // Autoplay disabled — stop at end of queue
+            controller.pause()
         }
     }
 
@@ -633,11 +785,7 @@ class PlayerViewModel(
                     val loaded = if (_uiState.value.allSongsLoaded && _uiState.value.allSongs.isNotEmpty()) {
                         _uiState.value.allSongs
                     } else {
-                        coroutineScope {
-                            _uiState.value.availablePlaylists
-                                .map { async { repository.getPlaylistSongs(it.id).getOrNull() ?: emptyList() } }
-                                .awaitAll()
-                        }.flatten().distinctBy { it.id }.also { all ->
+                        (repository.getAllSongs().getOrNull() ?: emptyList()).also { all ->
                             _uiState.value = _uiState.value.copy(allSongs = all, allSongsLoaded = true, queue = all)
                         }
                     }
@@ -692,31 +840,14 @@ class PlayerViewModel(
     private suspend fun loadAllSongsAndPlayRandom() {
         _uiState.value = _uiState.value.copy(isLoadingAllSongs = true)
 
-        // Wait for playlists to be available
-        var waited = 0
-        while (_uiState.value.availablePlaylists.isEmpty() && waited < 5000) {
-            delay(200)
-            waited += 200
-        }
-
-        val playlists = _uiState.value.availablePlaylists
-        if (playlists.isEmpty()) {
+        val allSongs = repository.getAllSongs().getOrNull() ?: emptyList()
+        if (allSongs.isEmpty()) {
             _uiState.value = _uiState.value.copy(isLoadingAllSongs = false)
             return
         }
 
-        // Load all playlists in parallel
-        val results = coroutineScope {
-            playlists.map { playlist ->
-                async {
-                    repository.getPlaylistSongs(playlist.id).getOrNull() ?: emptyList()
-                }
-            }.awaitAll()
-        }
-
-        val allSongs = results.flatten().distinctBy { it.id }
-
-        songCache.cacheSongs(allSongs, playlists.size)
+        val playlistsCount = _uiState.value.availablePlaylists.size
+        songCache.cacheSongs(allSongs, playlistsCount)
 
         _uiState.value = _uiState.value.copy(
             allSongs = allSongs,
@@ -755,7 +886,7 @@ class PlayerViewModel(
 
         val randomSong = availableSongs.random()
         // Set queue to allSongs so playSong() can find the song and build the full queue
-        _uiState.value = _uiState.value.copy(queue = allSongs, currentPlaylistId = null)
+        _uiState.value = _uiState.value.copy(queue = allSongs, currentPlaylistId = null, isCustomQueue = false)
         playSong(randomSong)
     }
 
@@ -1004,36 +1135,15 @@ class PlayerViewModel(
                 }
             }
 
-            // Wait for playlists to be available before fetching songs
-            if (playlists.isEmpty()) {
-                // Playlists haven't loaded yet — wait briefly for them
-                var waited = 0
-                while (_uiState.value.availablePlaylists.isEmpty() && waited < 5000) {
-                    delay(200)
-                    waited += 200
-                }
-            }
-
-            val finalPlaylists = _uiState.value.availablePlaylists
-            if (finalPlaylists.isEmpty()) {
+            // Fetch every song server-side in one call
+            val allSongs = repository.getAllSongs().getOrNull() ?: emptyList()
+            if (allSongs.isEmpty()) {
                 _uiState.value = _uiState.value.copy(isLoadingAllSongs = false)
                 return@launch
             }
 
-            // Load all playlists in parallel
-            val results = coroutineScope {
-                finalPlaylists.map { playlist ->
-                    async {
-                        repository.getPlaylistSongs(playlist.id).getOrNull() ?: emptyList()
-                    }
-                }.awaitAll()
-            }
-
-            // Combine all results
-            val allSongs = results.flatten().distinctBy { it.id }
-
-            // Cache for next time (include playlist count for staleness detection)
-            songCache.cacheSongs(allSongs, finalPlaylists.size)
+            // Cache for next time (use playlist count for staleness detection)
+            songCache.cacheSongs(allSongs, _uiState.value.availablePlaylists.size)
 
             _uiState.value = _uiState.value.copy(
                 allSongs = allSongs,
@@ -1056,17 +1166,22 @@ class PlayerViewModel(
                 // Set queue to allSongs and clear currentPlaylistId so savePlaybackState()
                 // records a null playlist ID — reloadQueueThenNavigate uses this as a signal
                 // to reload allSongs on the next restart rather than a single wrong playlist.
-                _uiState.value = _uiState.value.copy(queue = allSongs, currentPlaylistId = null)
+                _uiState.value = _uiState.value.copy(queue = allSongs, currentPlaylistId = null, isCustomQueue = false)
             }
             playSong(it)
         }
     }
 
     /**
-     * Play a song with a custom queue (for external playlists like Explore)
+     * Play a song with a custom queue (for external playlists like Explore, downloads, user playlists).
+     * Marks queue as custom so end-of-queue won't autoplay random songs from all playlists.
      */
     fun playSongWithQueue(song: Song, queue: List<Song>) {
-        _uiState.value = _uiState.value.copy(queue = queue)
+        _uiState.value = _uiState.value.copy(
+            queue = queue,
+            currentPlaylistId = null,
+            isCustomQueue = true
+        )
         playSong(song)
     }
 
@@ -1154,6 +1269,10 @@ class PlayerViewModel(
                     val metadata = MediaMetadata.Builder()
                         .setTitle(currentRadioSong?.title ?: "Neuro Radio")
                         .setArtist(currentRadioSong?.let { "${it.artist} \u2022 ${it.coverArtist}" } ?: "Live")
+                        .setAlbumTitle("Neuro 21 Station \u2022 LIVE")
+                        .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                        .setIsBrowsable(false)
+                        .setIsPlayable(true)
                         .apply {
                             currentRadioSong?.coverUrl?.let { url ->
                                 setArtworkUri(android.net.Uri.parse(url))
@@ -1212,9 +1331,39 @@ class PlayerViewModel(
                     _uiState.value = _uiState.value.copy(
                         radioListenerCount = state.listenerCount
                     )
-                    // Update song info if it changed (UI only — don't touch the player/stream)
+                    // Update song info if it changed
                     if (newSong != null && newSong.id != currentId) {
                         _uiState.value = _uiState.value.copy(currentSong = newSong)
+                        // Push metadata to the player so notification + Bluetooth/car display update.
+                        // Replacing the media item with the same stream URI updates metadata
+                        // without interrupting playback.
+                        val controller = mediaController
+                        if (controller != null && controller.mediaItemCount > 0) {
+                            val newMetadata = MediaMetadata.Builder()
+                                .setTitle(newSong.title)
+                                .setArtist("${newSong.artist} • ${newSong.coverArtist}")
+                                .setAlbumTitle("Neuro 21 Station • LIVE")
+                                .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
+                                .setIsBrowsable(false)
+                                .setIsPlayable(true)
+                                .apply {
+                                    newSong.coverUrl.takeIf { it.isNotBlank() }?.let { url ->
+                                        setArtworkUri(android.net.Uri.parse(url))
+                                    }
+                                }
+                                .build()
+                            val updatedItem = controller.currentMediaItem
+                                ?.buildUpon()
+                                ?.setMediaMetadata(newMetadata)
+                                ?.build()
+                            if (updatedItem != null) {
+                                try {
+                                    controller.replaceMediaItem(controller.currentMediaItemIndex, updatedItem)
+                                } catch (_: Exception) {
+                                    // replaceMediaItem unsupported on older Media3 — fall back silently
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1228,6 +1377,7 @@ class PlayerViewModel(
         savePlaybackState()
         isCleared = true
         stopProgressUpdates()
+        crossfadeJob?.cancel()
         sleepTimerJob?.cancel()
         radioPollingJob?.cancel()
         playerListener?.let { mediaController?.removeListener(it) }

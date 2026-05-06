@@ -12,11 +12,14 @@ import com.soul.neurokaraoke.NeuroKaraokeApp
 import com.soul.neurokaraoke.R
 import com.soul.neurokaraoke.data.model.Singer
 import com.soul.neurokaraoke.data.model.Song
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
@@ -65,6 +68,24 @@ object DownloadRepository {
     val downloadProgress: StateFlow<Map<String, Float>> = _downloadProgress.asStateFlow()
 
     private val downloadSemaphore = Semaphore(3)
+
+    // Process-scoped scope so downloads survive ViewModel lifecycle and are not
+    // coupled to whichever UI screen requested them. Each enqueue gets its own
+    // independent coroutine — a stuck or crashed one cannot block subsequent ones.
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    // Tracks song ids currently being processed so duplicate taps are deduped
+    // without permanently disabling future tap-to-download attempts.
+    private val inFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    fun enqueueDownload(song: Song) {
+        if (isDownloaded(song.id)) return
+        if (song.audioUrl.isBlank()) return
+        if (!inFlight.add(song.id)) return  // already enqueued
+        downloadScope.launch {
+            try { downloadSong(song) } finally { inFlight.remove(song.id) }
+        }
+    }
 
     // Notification tracking
     private const val NOTIFICATION_ID_PROGRESS = 9001
@@ -177,11 +198,10 @@ object DownloadRepository {
                         downloadedAt = System.currentTimeMillis()
                     )
 
-                    val current = _downloads.value.toMutableList()
-                    current.add(downloaded)
-                    _downloads.value = current
-
-                    saveMetadata()
+                    synchronized(_downloads) {
+                        _downloads.value = _downloads.value + downloaded
+                        saveMetadata()
+                    }
                     completedDownloadCount.incrementAndGet()
                 } catch (e: Exception) {
                     e.printStackTrace()

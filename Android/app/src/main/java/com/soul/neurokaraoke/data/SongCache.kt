@@ -20,7 +20,7 @@ class SongCache(private val context: Context) {
     private val setupCompleteKey = "setup_complete"
     private val cacheVersionKey = "cache_version"
     private val playlistCountKey = "cached_playlist_count"
-    private val currentCacheVersion = 3
+    private val currentCacheVersion = 6
 
     private val file: File
         get() = File(context.filesDir, fileName)

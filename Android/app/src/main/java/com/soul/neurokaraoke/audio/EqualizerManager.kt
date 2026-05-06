@@ -2,6 +2,7 @@ package com.soul.neurokaraoke.audio
 
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,7 +30,9 @@ data class AudioEffectsState(
     // Bass Boost
     val bassBoostEnabled: Boolean = false,
     val bassBoostStrength: Int = 0, // 0-1000
-    val bassBoostAvailable: Boolean = false
+    val bassBoostAvailable: Boolean = false,
+    // Volume Normalization
+    val normalizeVolume: Boolean = false
 )
 
 // Keep old name for compatibility
@@ -38,6 +41,7 @@ typealias EqualizerState = AudioEffectsState
 object EqualizerManager {
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
     private var audioSessionId: Int = 0
 
     private val _state = MutableStateFlow(AudioEffectsState())
@@ -69,6 +73,16 @@ object EqualizerManager {
                 if (strengthSupported) {
                     setStrength(_state.value.bassBoostStrength.toShort())
                 }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Initialize LoudnessEnhancer for volume normalization
+        try {
+            loudnessEnhancer = LoudnessEnhancer(audioSessionId).apply {
+                setTargetGain(600) // +6 dB
+                enabled = _state.value.normalizeVolume
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -120,6 +134,8 @@ object EqualizerManager {
         val bbEnabled = bb?.enabled ?: false
         val bbStrength = try { bb?.roundedStrength?.toInt() ?: 0 } catch (e: Exception) { 0 }
 
+        val normEnabled = try { loudnessEnhancer?.enabled ?: false } catch (_: Exception) { false }
+
         _state.value = AudioEffectsState(
             isEnabled = eqEnabled,
             bands = bands,
@@ -128,7 +144,8 @@ object EqualizerManager {
             isAvailable = eqAvailable,
             bassBoostEnabled = bbEnabled,
             bassBoostStrength = bbStrength,
-            bassBoostAvailable = bbAvailable
+            bassBoostAvailable = bbAvailable,
+            normalizeVolume = normEnabled
         )
     }
 
@@ -192,6 +209,15 @@ object EqualizerManager {
         }
     }
 
+    fun setNormalizeVolume(enabled: Boolean) {
+        try {
+            loudnessEnhancer?.enabled = enabled
+            _state.value = _state.value.copy(normalizeVolume = enabled)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     fun setBassBoostStrength(strength: Int) {
         try {
             val clampedStrength = strength.coerceIn(0, 1000)
@@ -214,8 +240,14 @@ object EqualizerManager {
         } catch (e: Exception) {
             e.printStackTrace()
         }
+        try {
+            loudnessEnhancer?.release()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
         equalizer = null
         bassBoost = null
+        loudnessEnhancer = null
         audioSessionId = 0
     }
 

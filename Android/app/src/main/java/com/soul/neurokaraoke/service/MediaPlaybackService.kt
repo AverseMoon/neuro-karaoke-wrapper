@@ -4,13 +4,16 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.session.CacheBitmapLoader
+import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
-import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
@@ -19,42 +22,38 @@ import com.soul.neurokaraoke.MainActivity
 import com.soul.neurokaraoke.audio.AudioCacheManager
 import com.soul.neurokaraoke.audio.EqualizerManager
 import com.soul.neurokaraoke.data.repository.DownloadRepository
+import com.google.common.collect.ImmutableList
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.guava.future
 
 @UnstableApi
-class MediaPlaybackService : MediaSessionService() {
+class MediaPlaybackService : MediaLibraryService() {
 
-    private var mediaSession: MediaSession? = null
+    private var librarySession: MediaLibrarySession? = null
     private var player: ExoPlayer? = null
     private var playerListener: Player.Listener? = null
+    private lateinit var browseTree: AutoBrowseTree
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize download repository (before audio cache so downloads are served locally)
         DownloadRepository.initialize(this)
-
-        // Initialize audio cache
         AudioCacheManager.initialize(this)
+        browseTree = AutoBrowseTree(this)
 
-        // Create custom LoadControl for aggressive buffering
-        // This pre-loads more audio to handle connection drops
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(
-                60_000,  // Min buffer: 60 seconds (increased from default 15s)
-                180_000, // Max buffer: 3 minutes (increased from default 50s)
-                2_500,   // Buffer for playback: 2.5 seconds
-                5_000    // Buffer for rebuffer: 5 seconds
-            )
+            .setBufferDurationsMs(60_000, 180_000, 2_500, 5_000)
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setBackBuffer(30_000, true) // Keep 30 seconds of played audio
+            .setBackBuffer(30_000, true)
             .build()
 
-        // Create media source factory with cache support
         val cacheDataSourceFactory = AudioCacheManager.createCacheDataSourceFactory(this)
         val mediaSourceFactory = DefaultMediaSourceFactory(this)
             .setDataSourceFactory(cacheDataSourceFactory)
 
-        // Create ExoPlayer with caching and optimized buffering
         player = ExoPlayer.Builder(this)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
@@ -63,13 +62,12 @@ class MediaPlaybackService : MediaSessionService() {
                     .setUsage(C.USAGE_MEDIA)
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                     .build(),
-                true // handleAudioFocus
+                true
             )
             .setDeviceVolumeControlEnabled(true)
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        // Initialize equalizer with player's audio session ID
         player?.let { exoPlayer ->
             val listener = object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
@@ -82,7 +80,6 @@ class MediaPlaybackService : MediaSessionService() {
             exoPlayer.addListener(listener)
         }
 
-        // Create pending intent for notification click
         val sessionActivityPendingIntent = PendingIntent.getActivity(
             this,
             0,
@@ -90,28 +87,25 @@ class MediaPlaybackService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        // Create MediaSession with callback for lock screen controls
-        // Only create session if player was successfully initialized
         player?.let { exoPlayer ->
-            mediaSession = MediaSession.Builder(this, exoPlayer)
+            librarySession = MediaLibrarySession.Builder(this, exoPlayer, LibraryCallback())
                 .setSessionActivity(sessionActivityPendingIntent)
-                .setCallback(MediaSessionCallback())
+                .setBitmapLoader(CacheBitmapLoader(androidx.media3.datasource.DataSourceBitmapLoader(this)))
                 .build()
         }
     }
 
-    /**
-     * Callback to ensure skip next/previous commands are available on lock screen
-     */
-    private inner class MediaSessionCallback : MediaSession.Callback {
+    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaLibrarySession? {
+        return librarySession
+    }
+
+    private inner class LibraryCallback : MediaLibrarySession.Callback {
+
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
-            // Allow all available player commands including skip next/previous
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
-                .build()
-
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon().build()
             val playerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                 .add(Player.COMMAND_SEEK_TO_NEXT)
                 .add(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
@@ -121,15 +115,10 @@ class MediaPlaybackService : MediaSessionService() {
                 .add(Player.COMMAND_PLAY_PAUSE)
                 .add(Player.COMMAND_STOP)
                 .build()
-
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
                 .setAvailablePlayerCommands(playerCommands)
                 .build()
-        }
-
-        override fun onPostConnect(session: MediaSession, controller: MediaSession.ControllerInfo) {
-            // No-op
         }
 
         override fun onCustomCommand(
@@ -140,29 +129,94 @@ class MediaPlaybackService : MediaSessionService() {
         ): ListenableFuture<SessionResult> {
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_ERROR_NOT_SUPPORTED))
         }
-    }
 
-    override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
-        return mediaSession
+        override fun onGetLibraryRoot(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<MediaItem>> {
+            return Futures.immediateFuture(LibraryResult.ofItem(browseTree.rootItem(), params))
+        }
+
+        override fun onGetItem(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            mediaId: String
+        ): ListenableFuture<LibraryResult<MediaItem>> = serviceScope.future {
+            val item = browseTree.item(mediaId)
+            if (item != null) LibraryResult.ofItem(item, null)
+            else LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE)
+        }
+
+        override fun onGetChildren(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            parentId: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = serviceScope.future {
+            val all = browseTree.children(parentId)
+            val from = (page * pageSize).coerceAtMost(all.size)
+            val to = (from + pageSize).coerceAtMost(all.size)
+            val pageItems = if (from < to) all.subList(from, to) else emptyList()
+            LibraryResult.ofItemList(ImmutableList.copyOf(pageItems), params)
+        }
+
+        override fun onSearch(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<Void>> = serviceScope.future {
+            val results = browseTree.search(query)
+            session.notifySearchResultChanged(browser, query, results.size, params)
+            LibraryResult.ofVoid()
+        }
+
+        override fun onGetSearchResult(
+            session: MediaLibrarySession,
+            browser: MediaSession.ControllerInfo,
+            query: String,
+            page: Int,
+            pageSize: Int,
+            params: LibraryParams?
+        ): ListenableFuture<LibraryResult<ImmutableList<MediaItem>>> = serviceScope.future {
+            val all = browseTree.search(query)
+            val from = (page * pageSize).coerceAtMost(all.size)
+            val to = (from + pageSize).coerceAtMost(all.size)
+            val pageItems = if (from < to) all.subList(from, to) else emptyList()
+            LibraryResult.ofItemList(ImmutableList.copyOf(pageItems), params)
+        }
+
+        /**
+         * Auto sends play requests with mediaId only — we must add the URI
+         * by resolving against our song list.
+         */
+        override fun onAddMediaItems(
+            mediaSession: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            mediaItems: MutableList<MediaItem>
+        ): ListenableFuture<MutableList<MediaItem>> = serviceScope.future {
+            mediaItems.map { item ->
+                if (item.localConfiguration?.uri != null) {
+                    item
+                } else {
+                    browseTree.resolve(item.mediaId) ?: item
+                }
+            }.toMutableList()
+        }
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        // Save current playback state before stopping — the ViewModel's process may already be dead
         savePlaybackStateFromService()
-        // Stop playback and service when app is swiped away from recents
-        mediaSession?.player?.apply {
+        librarySession?.player?.apply {
             stop()
             clearMediaItems()
         }
         stopSelf()
     }
 
-    /**
-     * Save the current song and position directly from the service.
-     * This is the last-resort save when the app process is being killed.
-     * The ViewModel normally handles saves, but when the app is swiped from recents,
-     * the ViewModel process may already be dead by the time onTaskRemoved fires.
-     */
     private fun savePlaybackStateFromService() {
         val p = player ?: return
         val mediaItem = p.currentMediaItem ?: return
@@ -182,17 +236,14 @@ class MediaPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         EqualizerManager.release()
-        // Remove listener before releasing player
         playerListener?.let { listener ->
             player?.removeListener(listener)
         }
         playerListener = null
-        // Release ExoPlayer explicitly, then release media session
         player?.release()
         player = null
-        mediaSession?.release()
-        mediaSession = null
-        // Note: Don't release AudioCacheManager here as it may be used by other components
+        librarySession?.release()
+        librarySession = null
         super.onDestroy()
     }
 

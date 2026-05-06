@@ -1,6 +1,8 @@
 *.iml
 .gradle
 /local.properties
+.claude
+CLAUDE.md
 
 # Signing keys - NEVER commit these
 *.jks

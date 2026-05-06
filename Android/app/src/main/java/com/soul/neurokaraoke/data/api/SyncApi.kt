@@ -20,6 +20,65 @@ class SyncApi {
     companion object {
         private const val TAG = "SyncApi"
         private const val API_URL = "https://api.neurokaraoke.com"
+        private const val IDK_URL = "https://idk.neurokaraoke.com"
+    }
+
+    /**
+     * Phone: ask server for a 6-char pairing code bound to the current user's JWT.
+     * Code expires in 5 min, single-use.
+     */
+    suspend fun createPairingCode(jwt: String): Result<String> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("$IDK_URL/api/auth/pairing-code").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Authorization", "Bearer $jwt")
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 10000
+                readTimeout = 10000
+                outputStream.use { it.write("{}".toByteArray()) }
+            }
+            if (conn.responseCode !in 200..299) {
+                return@withContext Result.failure(Exception("HTTP ${conn.responseCode}"))
+            }
+            val body = conn.inputStream.bufferedReader().readText()
+            val code = JSONObject(body).optString("code", "")
+            if (code.isBlank()) Result.failure(Exception("Empty code"))
+            else Result.success(code)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /**
+     * AAOS: redeem a pairing code for a JWT. Single-use; server deletes on success.
+     */
+    suspend fun redeemPairingCode(code: String): Result<String> = withContext(Dispatchers.IO) {
+        var conn: HttpURLConnection? = null
+        try {
+            conn = (URL("$IDK_URL/api/auth/redeem-code").openConnection() as HttpURLConnection).apply {
+                requestMethod = "POST"
+                setRequestProperty("Content-Type", "application/json")
+                doOutput = true
+                connectTimeout = 10000
+                readTimeout = 10000
+                outputStream.use { it.write(JSONObject().put("code", code).toString().toByteArray()) }
+            }
+            if (conn.responseCode !in 200..299) {
+                return@withContext Result.failure(Exception("HTTP ${conn.responseCode}"))
+            }
+            val body = conn.inputStream.bufferedReader().readText()
+            val token = JSONObject(body).optString("token", "")
+            if (token.isBlank()) Result.failure(Exception("Empty token"))
+            else Result.success(token)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            conn?.disconnect()
+        }
     }
 
     /**

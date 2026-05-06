@@ -82,6 +82,34 @@ class NeuroKaraokeApi {
     private val songIdMapMutex = Mutex()
 
     /**
+     * Increment server-side play count for a song.
+     * Called once per song after 30 seconds of listening.
+     */
+    suspend fun reportPlayCount(songId: String, token: String? = null, guestId: String? = null): Result<Unit> = withContext(Dispatchers.IO) {
+        if (songId.isBlank() || songId.startsWith("radio_") || songId.startsWith("local_")) {
+            return@withContext Result.failure(IllegalArgumentException("Skip non-server song id"))
+        }
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL("$API_URL/api/songs/playCount/$songId")
+            connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "PUT"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+            connection.doOutput = false
+            if (token != null) connection.setRequestProperty("Authorization", "Bearer $token")
+            else if (guestId != null) connection.setRequestProperty("x-guest-id", guestId)
+            val code = connection.responseCode
+            if (code in 200..299) Result.success(Unit)
+            else Result.failure(Exception("HTTP $code"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    /**
      * Fetch playlist songs from API
      */
     suspend fun fetchPlaylist(playlistId: String): Result<List<ApiSong>> = withContext(Dispatchers.IO) {
@@ -468,6 +496,99 @@ class NeuroKaraokeApi {
     }
 
     /**
+     * Fetch every song server-side via POST /api/songs.
+     * Returns ApiSong with the server UUID stashed in playlistName field — caller
+     * is responsible for using the returned id list (parallel index).
+     */
+    data class AllSongEntry(
+        val id: String,
+        val apiSong: ApiSong,
+        val durationSeconds: Int
+    )
+
+    suspend fun fetchAllSongs(): Result<List<AllSongEntry>> = withContext(Dispatchers.IO) {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL("$API_URL/api/songs")
+            connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.connectTimeout = 15000
+            connection.readTimeout = 30000
+            connection.doOutput = true
+            connection.outputStream.bufferedWriter().use {
+                it.write("{\"page\":0,\"pageSize\":5000}")
+            }
+
+            val responseCode = connection.responseCode
+            if (responseCode != HttpURLConnection.HTTP_OK) {
+                return@withContext Result.failure(Exception("HTTP error: $responseCode"))
+            }
+
+            val response = connection.inputStream.bufferedReader().use { it.readText() }
+            val root = JSONObject(response)
+            val items = root.optJSONArray("items") ?: return@withContext Result.success(emptyList())
+            val out = mutableListOf<AllSongEntry>()
+
+            for (i in 0 until items.length()) {
+                val obj = items.getJSONObject(i)
+                val id = obj.optString("id", "")
+                if (id.isBlank()) continue
+
+                val originalArtists = buildList {
+                    obj.optJSONArray("originalArtists")?.let { arr ->
+                        for (j in 0 until arr.length()) add(arr.optString(j, ""))
+                    }
+                }.filter { it.isNotBlank() }.joinToString(", ")
+
+                val coverArtists = buildList {
+                    obj.optJSONArray("coverArtists")?.let { arr ->
+                        for (j in 0 until arr.length()) add(arr.optString(j, ""))
+                    }
+                }.filter { it.isNotBlank() }.joinToString(", ")
+
+                val coverArtObj = obj.optJSONObject("coverArt")
+                val coverArtUrl = coverArtObj?.let { art ->
+                    val cloudflareId = art.optString("cloudflareId", "")
+                    val artAbsPath = art.optString("absolutePath", "")
+                    when {
+                        cloudflareId.isNotBlank() -> "https://images.neurokaraoke.com/WxURxyML82UkE7gY-PiBKw/$cloudflareId/public"
+                        artAbsPath.isNotBlank() -> artAbsPath
+                        else -> null
+                    }
+                }
+                val artCredit = coverArtObj?.takeIf { !it.isNull("credit") }
+                    ?.optString("credit", "")
+                    ?.takeIf { it.isNotBlank() && it != "null" }
+
+                val audioPath = obj.optString("absolutePath", "")
+                val audioUrl = if (audioPath.isNotBlank()) "https://storage.neurokaraoke.com/$audioPath" else ""
+
+                out.add(
+                    AllSongEntry(
+                        id = id,
+                        apiSong = ApiSong(
+                            playlistName = null,
+                            title = obj.optString("title", "Unknown"),
+                            originalArtists = originalArtists.ifEmpty { "Unknown Artist" },
+                            coverArtists = coverArtists.ifEmpty { null },
+                            coverArt = coverArtUrl,
+                            audioUrl = audioUrl,
+                            artCredit = artCredit
+                        ),
+                        durationSeconds = obj.optInt("duration", 0)
+                    )
+                )
+            }
+            Result.success(out)
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            connection?.disconnect()
+        }
+    }
+
+    /**
      * Fetch trending songs from the explore API.
      * Returns songs sorted by play count (most played first).
      */
@@ -516,7 +637,9 @@ class NeuroKaraokeApi {
                         }
                     }
 
-                    val artCredit = coverArtObj?.optString("credit", "")
+                    val artCredit = coverArtObj?.takeIf { !it.isNull("credit") }
+                        ?.optString("credit", "")
+                        ?.takeIf { it.isNotBlank() && it != "null" }
 
                     // Audio URL from absolutePath
                     val audioPath = obj.optString("absolutePath", "")

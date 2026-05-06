@@ -57,6 +57,20 @@ android {
             )
         }
     }
+
+    flavorDimensions += "platform"
+    productFlavors {
+        create("mobile") {
+            dimension = "platform"
+            // Phone + Android Auto (projected). Default flavor.
+        }
+        create("automotive") {
+            dimension = "platform"
+            minSdk = 29 // app-automotive requires API 29+
+            applicationIdSuffix = ".automotive"
+            versionNameSuffix = "-aaos"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -98,6 +112,7 @@ dependencies {
 
     // Coil for image loading
     implementation(libs.coil.compose)
+    implementation("io.coil-kt:coil:2.6.0")
 
     // Media3 ExoPlayer
     implementation(libs.androidx.media3.exoplayer)
@@ -108,6 +123,14 @@ dependencies {
     // Lifecycle ViewModel Compose
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
+
+    // Coroutine ↔ Guava ListenableFuture bridge (for MediaLibraryService callbacks)
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
+
+    // Android for Cars App Library — custom AA browse UI (tabs, grids, lists)
+    implementation("androidx.car.app:app:1.4.0")
+    "mobileImplementation"("androidx.car.app:app-projected:1.4.0")
+    "automotiveImplementation"("androidx.car.app:app-automotive:1.4.0")
 
     // Testing
     testImplementation(libs.junit)
