@@ -14,6 +14,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.soul.neurokaraoke.data.api.SyncApi
+import kotlinx.coroutines.delay
 
 /**
  * Phone-side: shows a 6-char pairing code that the user types into AAOS to log in.
@@ -36,12 +38,22 @@ import com.soul.neurokaraoke.data.api.SyncApi
 fun PairCarDialog(jwt: String, onDismiss: () -> Unit) {
     var code by remember { mutableStateOf<String?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
+    var secondsLeft by remember { mutableIntStateOf(300) }
+    val expired = secondsLeft <= 0
 
     LaunchedEffect(Unit) {
         SyncApi().createPairingCode(jwt).fold(
             onSuccess = { code = it },
             onFailure = { error = it.message ?: "Failed to fetch code" }
         )
+    }
+
+    LaunchedEffect(code) {
+        if (code == null) return@LaunchedEffect
+        while (secondsLeft > 0) {
+            delay(1_000L)
+            secondsLeft--
+        }
     }
 
     AlertDialog(
@@ -60,6 +72,12 @@ fun PairCarDialog(jwt: String, onDismiss: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     when {
+                        expired -> Text(
+                            "Code expired",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
                         code != null -> Text(
                             code!!,
                             fontSize = 40.sp,
@@ -74,11 +92,16 @@ fun PairCarDialog(jwt: String, onDismiss: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Code expires in 5 minutes.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (!expired && code != null) {
+                    val m = secondsLeft / 60
+                    val s = secondsLeft % 60
+                    Text(
+                        "Expires in %d:%02d".format(m, s),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (secondsLeft <= 60) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done") } }

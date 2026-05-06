@@ -107,7 +107,7 @@ fun AaosPairingScreen(
                 modifier = Modifier.weight(1f),
                 onKey = { ch ->
                     if (code.length < 6) code = (code + ch).uppercase()
-                    if (code.length == 6) onSubmit(code)
+                    if (code.length == 6) { onSubmit(code); code = "" }
                 },
                 onBackspace = { if (code.isNotEmpty()) code = code.dropLast(1) }
             )

@@ -1323,7 +1323,6 @@ class PlayerViewModel(
         radioPollingJob?.cancel()
         radioPollingJob = viewModelScope.launch {
             while (isActive && _uiState.value.isRadioMode) {
-                delay(15_000L)
                 radioApi.fetchCurrentState().onSuccess { state ->
                     if (!_uiState.value.isRadioMode) return@onSuccess
                     val newSong = state.current?.toSong()
@@ -1366,6 +1365,7 @@ class PlayerViewModel(
                         }
                     }
                 }
+                delay(15_000L)
             }
         }
     }
