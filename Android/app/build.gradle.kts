@@ -49,7 +49,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -58,19 +59,6 @@ android {
         }
     }
 
-    flavorDimensions += "platform"
-    productFlavors {
-        create("mobile") {
-            dimension = "platform"
-            // Phone + Android Auto (projected). Default flavor.
-        }
-        create("automotive") {
-            dimension = "platform"
-            minSdk = 29 // app-automotive requires API 29+
-            applicationIdSuffix = ".automotive"
-            versionNameSuffix = "-aaos"
-        }
-    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
@@ -129,8 +117,7 @@ dependencies {
 
     // Android for Cars App Library — custom AA browse UI (tabs, grids, lists)
     implementation("androidx.car.app:app:1.4.0")
-    "mobileImplementation"("androidx.car.app:app-projected:1.4.0")
-    "automotiveImplementation"("androidx.car.app:app-automotive:1.4.0")
+    implementation("androidx.car.app:app-projected:1.4.0")
 
     // Testing
     testImplementation(libs.junit)
