@@ -19,6 +19,7 @@ class CarPlayer(private val context: Context) {
 
     private var controller: MediaController? = null
     private var connecting: com.google.common.util.concurrent.ListenableFuture<MediaController>? = null
+    private val executor: java.util.concurrent.ExecutorService = java.util.concurrent.Executors.newSingleThreadExecutor()
 
     fun ensureConnected() {
         if (controller != null || connecting != null) return
@@ -36,7 +37,7 @@ class CarPlayer(private val context: Context) {
             } finally {
                 connecting = null
             }
-        }, java.util.concurrent.Executors.newSingleThreadExecutor())
+        }, executor)
     }
 
     fun playSongs(songs: List<Song>, startIndex: Int) {
@@ -75,6 +76,7 @@ class CarPlayer(private val context: Context) {
         controller = null
         connecting?.cancel(true)
         connecting = null
+        executor.shutdown()
     }
 
     private fun runOnController(block: (MediaController) -> Unit) {
@@ -85,7 +87,7 @@ class CarPlayer(private val context: Context) {
             // Retry once the connection completes
             connecting?.addListener({
                 controller?.let(block)
-            }, java.util.concurrent.Executors.newSingleThreadExecutor())
+            }, executor)
         }
     }
 

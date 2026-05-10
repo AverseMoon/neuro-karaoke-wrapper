@@ -49,7 +49,7 @@ class FavoritesRepository(context: Context) {
                 }
                 _favorites.value = songs
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
                 _favorites.value = emptyList()
             }
         }

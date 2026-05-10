@@ -56,7 +56,7 @@ class LyricsApi {
                 Result.failure(Exception("HTTP $responseCode"))
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             Result.failure(e)
         } finally {
             connection?.disconnect()
@@ -96,7 +96,7 @@ class LyricsApi {
                 Result.success(null)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             Result.failure(e)
         } finally {
             connection?.disconnect()

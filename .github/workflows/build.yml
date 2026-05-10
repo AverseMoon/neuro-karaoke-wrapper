@@ -121,32 +121,34 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 -d > Android/keystore.jks
 
-      - name: Build Android APK
+      - name: Build Android APKs
         working-directory: Android
         env:
           RELEASE_STORE_FILE: ${{ secrets.KEYSTORE_BASE64 != '' && 'keystore.jks' || '' }}
           RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleMobileRelease assembleAutomotiveRelease
 
-      - name: Rename APK
+      - name: Rename APKs
         run: |
           set -e
-          APK_PATH=$(ls Android/app/build/outputs/apk/release/*.apk 2>/dev/null | head -n1 || true)
-          if [ -z "$APK_PATH" ]; then
-            echo "No APK found in Android/app/build/outputs/apk/release/"
-            exit 1
+          MOBILE=$(ls Android/app/build/outputs/apk/mobile/release/*.apk 2>/dev/null | head -n1 || true)
+          AUTOMOTIVE=$(ls Android/app/build/outputs/apk/automotive/release/*.apk 2>/dev/null | head -n1 || true)
+          if [ -z "$MOBILE" ]; then
+            echo "No mobile APK found"; exit 1
           fi
-
           mkdir -p releases
-          cp "$APK_PATH" releases/Neuro.Karaoke.Player.apk
+          cp "$MOBILE" releases/Neuro.Karaoke.Player.apk
+          if [ -n "$AUTOMOTIVE" ]; then
+            cp "$AUTOMOTIVE" releases/Neuro.Karaoke.Player.Automotive.apk
+          fi
 
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Neuro.Karaoke.Player.apk
-          path: releases/Neuro.Karaoke.Player.apk
+          name: android-apks
+          path: releases/*.apk
           if-no-files-found: error
 
   draft-release:
@@ -192,8 +194,11 @@ jobs:
             [ -n "$f" ] && cp "$f" "renamed/Neuro.Karaoke.Player-arm64.$ext"
           done
 
-          # Android
-          find release/ -type f -name '*.apk' | head -1 | xargs -I{} cp {} renamed/Neuro.Karaoke.Player.apk
+          # Android — mobile APK (phone), automotive APK (AAOS car)
+          f=$(find release/ -type f -name 'Neuro.Karaoke.Player.apk' | head -1)
+          [ -n "$f" ] && cp "$f" renamed/Neuro.Karaoke.Player.apk
+          f=$(find release/ -type f -name 'Neuro.Karaoke.Player.Automotive.apk' | head -1)
+          [ -n "$f" ] && cp "$f" renamed/Neuro.Karaoke.Player.Automotive.apk
 
           echo "Renamed assets:"
           ls -lh renamed/

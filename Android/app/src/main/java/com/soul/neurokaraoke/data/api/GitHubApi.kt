@@ -27,7 +27,8 @@ data class GitHubRelease(
      * Get the APK download URL if available, otherwise return the release page URL
      */
     fun getDownloadUrl(): String {
-        val apkAsset = assets.find { it.name.endsWith(".apk") }
+        val apkAsset = assets.find { it.name == "Neuro.Karaoke.Player.apk" }
+            ?: assets.find { it.name.endsWith(".apk") && !it.name.contains("Automotive", ignoreCase = true) }
         return apkAsset?.downloadUrl ?: htmlUrl
     }
 
@@ -93,7 +94,7 @@ class GitHubApi(
                 releases.add(parseRelease(obj))
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         return releases
     }

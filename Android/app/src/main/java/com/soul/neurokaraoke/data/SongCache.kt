@@ -87,7 +87,7 @@ class SongCache(private val context: Context) {
 
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }
@@ -159,7 +159,7 @@ class SongCache(private val context: Context) {
             }
             songs
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             emptyList()
         }
     }

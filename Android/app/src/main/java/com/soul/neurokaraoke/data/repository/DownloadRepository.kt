@@ -204,7 +204,7 @@ object DownloadRepository {
                     }
                     completedDownloadCount.incrementAndGet()
                 } catch (e: Exception) {
-                    e.printStackTrace()
+                    if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
                     // Clean up partial files
                     File(audioDir, "${song.id}.mp3").delete()
                     File(coversDir, "${song.id}.jpg").delete()
@@ -466,7 +466,7 @@ object DownloadRepository {
             _downloads.value = songs
             if (needsResave) saveMetadata()
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -496,7 +496,7 @@ object DownloadRepository {
             tmpFile.writeText(array.toString(2))
             tmpFile.renameTo(file)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 }

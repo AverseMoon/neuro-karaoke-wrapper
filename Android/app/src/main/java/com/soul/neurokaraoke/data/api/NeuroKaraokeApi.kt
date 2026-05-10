@@ -163,7 +163,7 @@ class NeuroKaraokeApi {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         return songs
     }
@@ -315,7 +315,7 @@ class NeuroKaraokeApi {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         // Sort by setListDate descending (newest first)
         return entries.sortedByDescending { it.first }.map { it.second }
@@ -397,7 +397,7 @@ class NeuroKaraokeApi {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         return playlists
     }
@@ -490,7 +490,7 @@ class NeuroKaraokeApi {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         return artists.sortedByDescending { it.songCount }
     }
@@ -799,7 +799,7 @@ class NeuroKaraokeApi {
                 songIdMap = emptyMap()
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             songIdMap = emptyMap()
         } finally {
             connection?.disconnect()

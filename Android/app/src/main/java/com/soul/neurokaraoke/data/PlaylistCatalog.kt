@@ -34,7 +34,7 @@ class PlaylistCatalog(private val context: Context) {
             val json = file.readText()
             parsePlaylistsJson(json)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             emptyList()
         }
     }
@@ -55,7 +55,7 @@ class PlaylistCatalog(private val context: Context) {
             savePlaylists(playlists)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }
@@ -76,7 +76,7 @@ class PlaylistCatalog(private val context: Context) {
             savePlaylists(playlists)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }
@@ -94,7 +94,7 @@ class PlaylistCatalog(private val context: Context) {
             }
             removed
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }
@@ -163,7 +163,7 @@ class PlaylistCatalog(private val context: Context) {
             }
         } catch (e: Exception) {
             // If assets file doesn't exist, create empty catalog
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             val empty = JSONObject().apply {
                 put("playlists", JSONArray())
             }
@@ -205,7 +205,7 @@ class PlaylistCatalog(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
 
         return playlists
@@ -253,7 +253,7 @@ class PlaylistCatalog(private val context: Context) {
             savePlaylists(playlists)
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }

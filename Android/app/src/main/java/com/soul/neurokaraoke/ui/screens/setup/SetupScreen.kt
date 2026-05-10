@@ -111,7 +111,7 @@ fun SetupScreen(
                                     playlistCatalog.updatePlaylist(updated)
                                 },
                                 onFailure = { error ->
-                                    error.printStackTrace()
+                                    if (com.soul.neurokaraoke.BuildConfig.DEBUG) error.printStackTrace()
                                 }
                             )
                         }
@@ -143,7 +143,7 @@ fun SetupScreen(
             onSetupComplete()
 
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             statusText = "Setup failed: ${e.message}"
             songCache.markSetupComplete()
             kotlinx.coroutines.delay(2000)

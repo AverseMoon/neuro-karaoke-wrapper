@@ -1,0 +1,63 @@
+name: Bump cask on new release
+
+on:
+  repository_dispatch:
+    types: [new-release]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.5.2)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: ver
+        run: |
+          if [ -n "${{ github.event.client_payload.version }}" ]; then
+            echo "v=${{ github.event.client_payload.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "v=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download DMGs and compute SHA256
+        id: sha
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          BASE="https://github.com/aferilvt/neuro-karaoke-wrapper/releases/download/v${V}"
+          ARM_FILE="Neuro Karaoke Player-${V}-arm64.dmg"
+          X64_FILE="Neuro Karaoke Player-${V}-x64.dmg"
+
+          curl -sL -o arm.dmg "${BASE}/${ARM_FILE// /%20}"
+          curl -sL -o x64.dmg "${BASE}/${X64_FILE// /%20}"
+
+          ARM_SHA=$(sha256sum arm.dmg | awk '{print $1}')
+          X64_SHA=$(sha256sum x64.dmg | awk '{print $1}')
+
+          echo "arm=$ARM_SHA" >> $GITHUB_OUTPUT
+          echo "x64=$X64_SHA" >> $GITHUB_OUTPUT
+
+      - name: Update cask
+        run: |
+          V="${{ steps.ver.outputs.v }}"
+          ARM="${{ steps.sha.outputs.arm }}"
+          X64="${{ steps.sha.outputs.x64 }}"
+
+          sed -i "s/version \".*\"/version \"$V\"/" Casks/neurokaraoke.rb
+          sed -i "s/arm:   \"[a-f0-9]\{64\}\"/arm:   \"$ARM\"/" Casks/neurokaraoke.rb
+          sed -i "s/intel: \"[a-f0-9]\{64\}\"/intel: \"$X64\"/" Casks/neurokaraoke.rb
+
+      - name: Commit + push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/neurokaraoke.rb
+          git diff --cached --quiet || git commit -m "neurokaraoke ${{ steps.ver.outputs.v }}"
+          git push

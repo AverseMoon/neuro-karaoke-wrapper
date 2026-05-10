@@ -1042,7 +1042,7 @@ private fun LyricsContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = errorMessage!!,
+                        text = errorMessage.orEmpty(),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.error
                     )

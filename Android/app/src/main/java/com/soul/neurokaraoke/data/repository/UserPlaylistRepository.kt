@@ -53,7 +53,7 @@ class UserPlaylistRepository(context: Context) {
                 }
                 _playlists.value = playlistList
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
                 _playlists.value = emptyList()
             }
         }

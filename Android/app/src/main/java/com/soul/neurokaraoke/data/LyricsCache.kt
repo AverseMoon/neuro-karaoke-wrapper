@@ -33,7 +33,7 @@ class LyricsCache(private val context: Context) {
                 source = obj.optString("source", "lrclib")
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             null
         }
     }
@@ -61,7 +61,7 @@ class LyricsCache(private val context: Context) {
             file.writeText(obj.toString())
             true
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             false
         }
     }

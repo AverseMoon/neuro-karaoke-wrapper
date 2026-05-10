@@ -63,7 +63,7 @@ object EqualizerManager {
                 enabled = _state.value.isEnabled
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
 
         // Initialize Bass Boost
@@ -75,7 +75,7 @@ object EqualizerManager {
                 }
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
 
         // Initialize LoudnessEnhancer for volume normalization
@@ -85,7 +85,7 @@ object EqualizerManager {
                 enabled = _state.value.normalizeVolume
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
 
         updateState()
@@ -124,7 +124,7 @@ object EqualizerManager {
                 eqAvailable = true
                 eqEnabled = eq.enabled
             } catch (e: Exception) {
-                e.printStackTrace()
+                if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
             }
         }
 
@@ -154,7 +154,7 @@ object EqualizerManager {
             equalizer?.enabled = enabled
             _state.value = _state.value.copy(isEnabled = enabled)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -170,7 +170,7 @@ object EqualizerManager {
                 currentPresetIndex = -1 // Custom when manually adjusted
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -181,7 +181,7 @@ object EqualizerManager {
             updateState() // Refresh band levels after preset change
             _state.value = _state.value.copy(currentPresetIndex = presetIndex)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -195,7 +195,7 @@ object EqualizerManager {
             _state.value = _state.value.copy(currentPresetIndex = -1)
             updateState()
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -205,7 +205,7 @@ object EqualizerManager {
             bassBoost?.enabled = enabled
             _state.value = _state.value.copy(bassBoostEnabled = enabled)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -214,7 +214,7 @@ object EqualizerManager {
             loudnessEnhancer?.enabled = enabled
             _state.value = _state.value.copy(normalizeVolume = enabled)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -224,7 +224,7 @@ object EqualizerManager {
             bassBoost?.setStrength(clampedStrength.toShort())
             _state.value = _state.value.copy(bassBoostStrength = clampedStrength)
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
     }
 
@@ -233,17 +233,17 @@ object EqualizerManager {
         try {
             equalizer?.release()
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         try {
             bassBoost?.release()
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         try {
             loudnessEnhancer?.release()
         } catch (e: Exception) {
-            e.printStackTrace()
+            if (com.soul.neurokaraoke.BuildConfig.DEBUG) e.printStackTrace()
         }
         equalizer = null
         bassBoost = null
