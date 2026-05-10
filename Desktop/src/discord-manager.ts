@@ -1,37 +1,63 @@
+import { Site } from "./main";
+
 const DiscordRPC = require('discord-rpc');
 
-const SITE_CONFIG = {
+type SiteConfig = { label: string, url: string };
+const SITE_CONFIG: Record<Site, SiteConfig> = {
   neuro:  { label: 'Listen on Neuro Karaoke',  url: 'https://www.neurokaraoke.com/' },
   evil:   { label: 'Listen on Evil Karaoke',   url: 'https://www.evilkaraoke.com/' },
-  smocus: { label: 'Listen on Smocus Karaoke', url: 'https://twinskaraoke.com/' }
+  smocus: { label: 'Listen on Smocus Karaoke', url: 'https://twinskaraoke.com/' },
+  test:   { label: 'Listen on Neuro Karaoke',  url: 'https://www.neurokaraoke.com/' },
+};
+
+/**
+ * - 0 = playing 
+ * - 2 = listening
+ */ 
+export type ActivityType = 0 | 2;
+
+export type Activity = {
+  type: ActivityType,
+  details: string,
+  state: string,
+  largeImageKey: string,
+  largeImageText: string,
+  smallImageKey: 'play' | 'pause',
+  smallImageText: 'Playing' | 'Paused',
+  instance: boolean,
+  buttons: [SiteConfig],
+  startTimestamp?: number,
+  endTimestamp?: number,
 };
 
 /**
  * Manages Discord Rich Presence integration
  */
-class DiscordManager {
-  constructor(clientId) {
+export class DiscordManager {
+  clientId: string;
+  client: any;
+  currentSong: string = '';
+  currentArtist: string = '';
+  isPlaying: boolean = false;
+  songStartTime?: number = undefined;
+  songDuration?: number = undefined;
+  songElapsed: number = 0; // Actual elapsed time from player
+  pausedElapsed: number = 0; // Track elapsed time when paused
+  albumArtUrl?: string = undefined; // Store album art URL
+  albumArtText?: string = undefined; // Store album art credit text
+  albumArtCredit?: string = undefined;
+  lastPresenceUpdate: number = 0;
+  minPresenceIntervalMs: number = 15000;
+  pendingPresenceTimer?: NodeJS.Timeout = undefined;
+  isUpdatingPresence: boolean = false;
+  pendingPresenceRequested: boolean = false;
+  pendingPresenceForce: boolean = false;
+  activityType: ActivityType = 2; // 0 = Playing, 2 = Listening
+  songUrl?: string = undefined; // Current page URL for Discord button
+  currentSite: Site = 'neuro';
+  
+  constructor(clientId: string) {
     this.clientId = clientId;
-    this.client = null;
-    this.currentSong = '';
-    this.currentArtist = '';
-    this.isPlaying = false;
-    this.songStartTime = null;
-    this.songDuration = null;
-    this.songElapsed = 0; // Actual elapsed time from player
-    this.pausedElapsed = 0; // Track elapsed time when paused
-    this.albumArtUrl = null; // Store album art URL
-    this.albumArtText = null; // Store album art credit text
-    this.albumArtCredit = null;
-    this.lastPresenceUpdate = 0;
-    this.minPresenceIntervalMs = 15000;
-    this.pendingPresenceTimer = null;
-    this.isUpdatingPresence = false;
-    this.pendingPresenceRequested = false;
-    this.pendingPresenceForce = false;
-    this.activityType = 2; // 0 = Playing, 2 = Listening
-    this.songUrl = null; // Current page URL for Discord button
-    this.currentSite = 'neuro';
   }
 
   /**
@@ -46,7 +72,7 @@ class DiscordManager {
         this.updatePresence();
       });
 
-      this.client.on('error', (error) => {
+      this.client.on('error', (error: any) => {
         console.error('Discord RPC error:', error);
       });
 
@@ -61,7 +87,7 @@ class DiscordManager {
   /**
    * Update song information
    */
-  updateSong(title, artist = '') {
+  updateSong(title: string, artist: string = '') {
     const songChanged = this.currentSong !== title || this.currentArtist !== artist;
     this.currentSong = title;
     this.currentArtist = artist;
@@ -72,23 +98,23 @@ class DiscordManager {
       this.songStartTime = Date.now();
       this.songElapsed = 0;
       this.pausedElapsed = 0;
-      this.albumArtUrl = null; // Reset album art for new song
-      this.albumArtText = null; // Reset album art credit
-      this.albumArtCredit = null;
+      this.albumArtUrl = undefined; // Reset album art for new song
+      this.albumArtText = undefined; // Reset album art credit
+      this.albumArtCredit = undefined;
       this.lastPresenceUpdate = 0; // Force an immediate sync for new songs
       if (this.pendingPresenceTimer) {
         clearTimeout(this.pendingPresenceTimer);
-        this.pendingPresenceTimer = null;
+        this.pendingPresenceTimer = undefined;
       }
     }
 
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
   /**
    * Update playback state (playing/paused)
    */
-  updatePlaybackState(playing) {
+  updatePlaybackState(playing: boolean) {
     const wasPlaying = this.isPlaying;
     this.isPlaying = playing;
 
@@ -106,21 +132,21 @@ class DiscordManager {
       this.pausedElapsed = this.songElapsed;
     }
 
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
   /**
    * Update song duration
    */
-  updateDuration(durationInSeconds) {
+  updateDuration(durationInSeconds: number) {
     this.songDuration = durationInSeconds;
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
   /**
    * Update song elapsed time (from player)
    */
-  updateElapsed(elapsedSeconds) {
+  updateElapsed(elapsedSeconds: number) {
     this.songElapsed = elapsedSeconds;
 
     // Update start time based on current elapsed time
@@ -135,54 +161,50 @@ class DiscordManager {
   /**
    * Update album art
    */
-  updateAlbumArt(imageUrl, artText = null) {
+  updateAlbumArt(imageUrl: string, artText?: string) {
     if (imageUrl) {
       this.albumArtUrl = imageUrl;
     }
     if (artText) {
       this.albumArtText = artText;
     }
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
   /**
    * Update the active site
    */
-  updateSite(site) {
-    if (!SITE_CONFIG[site]) {
-      console.warn(`DiscordManager.updateSite: unknown site "${site}"`);
-      return;
-    }
+  updateSite(site: Site) {
     if (this.currentSite === site) return;
     this.currentSite = site;
-    this.songUrl = null;
-    this.updatePresence({ force: true });
+    this.songUrl = undefined;
+    this.updatePresence(true);
   }
 
   /**
    * Update the current page URL for the Discord button
    */
-  updateSongUrl(url) {
+  updateSongUrl(url: string) {
     if (!url) return;
     const siteBase = SITE_CONFIG[this.currentSite].url;
     if (!url.startsWith(siteBase)) return;
     if (url === this.songUrl) return;
     this.songUrl = url;
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
-  updateAlbumArtCredit(credit) {
+  updateAlbumArtCredit(credit: string) {
     if (!credit || typeof credit !== 'string') return;
     const cleaned = credit.replace(/^Art by:\s*/i, '').trim();
     this.albumArtCredit = cleaned;
     this.albumArtText = cleaned;
-    this.updatePresence({ force: true });
+    this.updatePresence(true);
   }
 
   /**
    * Update Discord Rich Presence with current state
    */
-  async updatePresence({ force = false } = {}) {
+  async updatePresence(force: boolean = false) {
     if (!this.client) {
       return;
     }
@@ -192,7 +214,7 @@ class DiscordManager {
       if (!this.pendingPresenceTimer) {
         const delay = this.minPresenceIntervalMs - (now - this.lastPresenceUpdate);
         this.pendingPresenceTimer = setTimeout(() => {
-          this.pendingPresenceTimer = null;
+          this.pendingPresenceTimer = undefined;
           this.updatePresence();
         }, delay);
       }
@@ -216,7 +238,7 @@ class DiscordManager {
 
       const largeImageKey = this.albumArtUrl || 'neurokaraoke';
 
-      const truncate = (value, max) => {
+      const truncate = (value: string, max: number) => {
         if (!value || value.length <= max) return value;
         return `${value.slice(0, max - 1)}…`;
       };
@@ -225,7 +247,7 @@ class DiscordManager {
       const stateText = this.currentArtist || 'Listening';
       const cfg = SITE_CONFIG[this.currentSite];
 
-      const activity = {
+      const activity: Activity = {
         type: this.activityType,
         details: truncate(detailsText, 128),
         state: truncate(stateText, 128),
@@ -284,7 +306,7 @@ class DiscordManager {
         const forceNext = this.pendingPresenceForce;
         this.pendingPresenceRequested = false;
         this.pendingPresenceForce = false;
-        this.updatePresence({ force: forceNext });
+        this.updatePresence(forceNext);
       }
     }
   }
@@ -295,7 +317,7 @@ class DiscordManager {
   destroy() {
     if (this.pendingPresenceTimer) {
       clearTimeout(this.pendingPresenceTimer);
-      this.pendingPresenceTimer = null;
+      this.pendingPresenceTimer = undefined;
     }
     if (this.client) {
       this.client.removeAllListeners();
@@ -305,5 +327,3 @@ class DiscordManager {
     }
   }
 }
-
-module.exports = DiscordManager;

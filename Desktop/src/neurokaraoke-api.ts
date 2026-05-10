@@ -1,22 +1,28 @@
-const https = require('https');
+import * as https from 'https';
+
+export type PlaylistData = {
+  artCredit: string,
+  cover: string,
+  songs: any[],
+};
 
 /**
  * Client for Neuro Karaoke API
  */
-class NeuroKaraokeAPI {
+export default class NeuroKaraokeAPI {
+  baseUrl = 'https://idk.neurokaraoke.com';
+  cache: Map<string, PlaylistData> = new Map();
+  maxCacheSize = 10;
   constructor() {
-    this.baseUrl = 'https://idk.neurokaraoke.com';
-    this.cache = new Map();
-    this.maxCacheSize = 10;
   }
 
   /**
    * Fetch playlist data
    */
-  async fetchPlaylist(playlistId) {
+  async fetchPlaylist(playlistId: string): Promise<PlaylistData> {
     // Check cache first
     if (this.cache.has(playlistId)) {
-      return this.cache.get(playlistId);
+      return this.cache.get(playlistId)!;
     }
 
     return new Promise((resolve, reject) => {
@@ -35,7 +41,7 @@ class NeuroKaraokeAPI {
             // Evict oldest entry if cache is full
             if (this.cache.size >= this.maxCacheSize) {
               const oldestKey = this.cache.keys().next().value;
-              this.cache.delete(oldestKey);
+              if (oldestKey) this.cache.delete(oldestKey);
             }
             this.cache.set(playlistId, playlist);
             resolve(playlist);
@@ -52,13 +58,13 @@ class NeuroKaraokeAPI {
   /**
    * Find song in playlist by title
    */
-  findSong(playlist, title, artist) {
+  findSong(playlist: PlaylistData, title: string, artist: string) {
     const songs = Array.isArray(playlist) ? playlist : (playlist && Array.isArray(playlist.songs) ? playlist.songs : null);
     if (!songs) {
       return null;
     }
 
-    const normalize = (value) => {
+    const normalize = (value: string) => {
       if (!value || typeof value !== 'string') return '';
       return value
         .toLowerCase()
@@ -69,9 +75,9 @@ class NeuroKaraokeAPI {
         .trim();
     };
 
-    const toStr = (value) => {
+    const toStr = (value: any | any[]) => {
       if (Array.isArray(value)) return value.join(', ');
-      return value || '';
+      return String(value || '');
     };
 
     const titleNorm = normalize(title);
@@ -112,7 +118,7 @@ class NeuroKaraokeAPI {
   /**
    * Get cover art URL from audio path
    */
-  getCoverArtUrl(audioPath) {
+  getCoverArtUrl(audioPath: string) {
     if (!audioPath) return null;
 
     // Handle relative paths from the songs API (absolutePath field)
@@ -131,7 +137,7 @@ class NeuroKaraokeAPI {
   /**
    * Get current playing song metadata
    */
-  async getCurrentSongMetadata(playlistId, title, artist) {
+  async getCurrentSongMetadata(playlistId: string, title: string, artist: string) {
     try {
       const playlist = await this.fetchPlaylist(playlistId);
       const song = this.findSong(playlist, title, artist);
@@ -184,5 +190,3 @@ class NeuroKaraokeAPI {
     }
   }
 }
-
-module.exports = NeuroKaraokeAPI;

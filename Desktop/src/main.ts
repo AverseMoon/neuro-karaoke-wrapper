@@ -1,58 +1,53 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, shell, clipboard, nativeImage, Menu, net } = require('electron');
-const path = require('path');
-const fs = require('fs');
-const config = require('./config');
-const DiscordManager = require('./discord-manager');
-const TrayManager = require('./tray-manager');
-const NeuroKaraokeAPI = require('./neurokaraoke-api');
-const { runSplashUpdater } = require('./auto-updater');
+import { app, BrowserWindow, WebContentsView, ipcMain, shell, clipboard, nativeImage, Menu, net } from 'electron';
+import { join } from 'path';
+import { readFileSync, writeFileSync } from 'fs';
+import config from './config.js';
+import { DiscordManager } from './discord-manager.js';
+import { TrayManager } from './tray-manager.js';
+import NeuroKaraokeAPI from './neurokaraoke-api.js';
+import { runSplashUpdater } from './auto-updater.js';
+import _ from 'lodash'
+import { getAssetPath } from './util.js';
+
+export type CloseToTrayFunction = (closed: boolean) => void;
+export type Theme = 'neuro' | 'evil' | 'smocus';
+export type Site = Theme | 'test';
+export type ChangeSiteFunction = (site: Site) => void;
+
+export type State = {
+  closeToTray: boolean,
+  lastSite: Site,
+};
+const defaultState: State = {
+  closeToTray: true,
+  lastSite: 'neuro',
+}
 
 // Just adding a comment cause stupid draft-release wont work like I want to :)
 // Lock colour profile to sRGB to prevent oversaturation after long sessions
 // (Chromium GPU colour-management can drift over extended uptime)
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
-// Custom titlebar height in pixels
-/** @type {number} */
-const TITLEBAR_HEIGHT = 32;
+const isDev: boolean = process.env.DEVTOOLS !== undefined;
 
-// Application state
-/** @type {Electron.BrowserWindow} */
-let mainWindow = null;
-/** @type {Electron.WebContentsView} */
-let titlebarView = null;
-/** @type {boolean} */
-let isQuitting = false;
-/** @type {boolean} */
-let trayAvailable = false;
+const TITLEBAR_HEIGHT: number = 32;
 
-// Managers
-/** @type {DiscordManager} */
-let discordManager = null;
-/** @type {TrayManager} */
-let trayManager = null;
-/** @type {NeuroKaraokeAPI} */
-let apiClient = null;
+let mainWindow: BrowserWindow | undefined = undefined;
+let titlebarView: WebContentsView | undefined = undefined;
+let isQuitting: boolean = false;
+let trayAvailable: boolean = false;
 
-// Current state
-/** @type {any} */
-let currentPlaylistId = null;
+let discordManager: DiscordManager | undefined = undefined;
+let trayManager: TrayManager | undefined = undefined;
+let apiClient: NeuroKaraokeAPI | undefined = undefined;
 
-// One persistent WebContentsView per site (lazily created)
-/** @type {Map<string, Electron.WebContentsView>} */
-const views = {};
-/** @type {Electron.WebContentsView} */
-let currentView = null;
+let currentPlaylistId: string | undefined = undefined;
 
-/** @type {Map<string, string>} */
-const SITE_MAP = {
-  neuro: config.URL.NEURO,
-  evil: config.URL.EVIL,
-  smocus: config.URL.SMOCUS
-};
+const views: Record<string, WebContentsView> = {};
+let currentView: WebContentsView | undefined = undefined;
 
 // Set app ID for Windows taskbar grouping
-app.setAppUserModelId(config.APP.ID);
+app.setAppUserModelId(config.app.id);
 
 // Only allow one instance of the app at a time
 const gotTheLock = app.requestSingleInstanceLock();
@@ -69,43 +64,34 @@ if (!gotTheLock) {
 }
 
 // Persistent state file for remembering user preferences (e.g. last site)
-const STATE_FILE = path.join(app.getPath('userData'), 'app-state.json');
+const STATE_FILE = join(app.getPath('userData'), 'app-state.json');
 
-function loadState() {
+function loadState(): State {
   try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8'));
+    return _.merge({}, defaultState, JSON.parse(readFileSync(STATE_FILE, 'utf-8')));
   } catch {
-    return {};
+    return _.cloneDeep(defaultState);
   }
 }
 
-function saveState(patch) {
-  const state = { ...loadState(), ...patch };
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
+function saveState(patch: Partial<State>) {
+  const state = _.merge(loadState(), patch);
+  writeFileSync(STATE_FILE, JSON.stringify(state), 'utf-8');
 }
 
-let closeToTray = loadState().closeToTray === true;
+let closeToTray = loadState().closeToTray;
 
-function setCloseToTray(value) {
+function setCloseToTray(value: boolean) {
   closeToTray = value;
   saveState({ closeToTray: value });
 }
 
-/**
- * Get asset path (works in both dev and production)
- * Uses packaged assets from inside the .asar
- */
-function getAssetPath(filename) {
-  return path.join(app.getAppPath(), 'assets', filename);
-}
-
-/** @type {string} */
 const iconPath = process.platform === 'win32'
   ? getAssetPath('neurokaraoke.ico')
   : getAssetPath('neurokaraoke.png');
 
 // The theme button label each site should have auto-selected on load
-const THEME_LABELS = { neuro: 'NEURO', evil: 'EVIL', smocus: 'SMOCUS' };
+const THEME_LABELS: Record<Site, string> = { neuro: 'NEURO', evil: 'EVIL', smocus: 'SMOCUS', test: 'TEST' };
 
 /**
  * After a site loads, programmatically click its matching theme button.
@@ -113,7 +99,7 @@ const THEME_LABELS = { neuro: 'NEURO', evil: 'EVIL', smocus: 'SMOCUS' };
  * event.isTrusted=false on these synthetic clicks, so our preload
  * listener ignores them and won't trigger another site switch.
  */
-function autoSelectTheme(view, label) {
+function autoSelectTheme(view: WebContentsView, label: string) {
   const safeLabel = JSON.stringify(label);
   const script = `
     (function() {
@@ -137,23 +123,12 @@ function autoSelectTheme(view, label) {
 /**
  * Wire up webContents events for a view
  */
-function setupViewEvents(view, theme) {
-  view.webContents.setUserAgent(config.APP.USER_AGENT);
+function setupViewEvents(view: WebContentsView, site: Site) {
+  view.webContents.setUserAgent(config.app.userAgent);
 
-
-  // Block navigation away from allowed hosts
-  const allowedHostnames = new Set([
-    'www.neurokaraoke.com', 'neurokaraoke.com',
-    'www.evilkaraoke.com', 'evilkaraoke.com',
-    'www.twinskaraoke.com', 'twinskaraoke.com',
-    'eu.twinskaraoke.com',
-    'cn.neurokaraoke.com',
-    'discord.com', 'www.discord.com'
-  ]);
-
-  const isSafeExternalUrl = (u) => {
+  const isSafeExternalUrl = (url: string) => {
     try {
-      const parsed = new URL(u);
+      const parsed = new URL(url);
       return parsed.protocol === 'https:' || parsed.protocol === 'http:';
     } catch { return false; }
   };
@@ -162,7 +137,7 @@ function setupViewEvents(view, theme) {
     console.log('[will-navigate]', url);
     try {
       const parsed = new URL(url);
-      if (!allowedHostnames.has(parsed.hostname)) {
+      if (!config.allowedHosts.has(parsed.hostname)) {
         console.log('[will-navigate] BLOCKED, opening externally:', parsed.hostname);
         event.preventDefault();
         if (isSafeExternalUrl(url)) shell.openExternal(url);
@@ -185,7 +160,7 @@ function setupViewEvents(view, theme) {
           parent: mainWindow,
           modal: true,
           webPreferences: {
-            partition: config.APP.PARTITION
+            partition: config.app.partition
           }
         });
         authWin.setMenuBarVisibility(false);
@@ -195,7 +170,7 @@ function setupViewEvents(view, theme) {
         authWin.webContents.on('will-navigate', (_event, cbUrl) => {
           try {
             const cb = new URL(cbUrl);
-            if (allowedHostnames.has(cb.hostname)) {
+            if (config.allowedHosts.has(cb.hostname)) {
               view.webContents.loadURL(cbUrl);
               authWin.close();
             }
@@ -206,7 +181,7 @@ function setupViewEvents(view, theme) {
         authWin.webContents.setWindowOpenHandler(({ url: innerUrl }) => {
           try {
             const inner = new URL(innerUrl);
-            if (allowedHostnames.has(inner.hostname)) {
+            if (config.allowedHosts.has(inner.hostname)) {
               view.webContents.loadURL(innerUrl);
               authWin.close();
             } else if (isSafeExternalUrl(innerUrl)) {
@@ -231,7 +206,7 @@ function setupViewEvents(view, theme) {
       if (details.method !== 'PUT') return;
       const match = details.url.match(/\/playCount\/([0-9a-f-]{36})$/i);
       if (match) {
-        const baseUrl = config.URL[theme.toUpperCase()];
+        const baseUrl = config.url[site];
         const songUrl = `${baseUrl}song/${match[1]}`;
         discordManager?.updateSongUrl(songUrl);
       }
@@ -242,25 +217,25 @@ function setupViewEvents(view, theme) {
 /**
  * Get or lazily create a persistent WebContentsView for the given site
  */
-function getOrCreateView(theme) {
-  if (views[theme]) return views[theme];
+function getOrCreateView(site: Site) {
+  if (views[site]) return views[site];
 
   const view = new WebContentsView({
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      partition: config.APP.PARTITION,
-      preload: path.join(__dirname, 'preload.js'),
+      partition: config.app.partition,
+      preload: getAssetPath('preload.js'),
       backgroundThrottling: false
     }
   });
 
-  setupViewEvents(view, theme);
-  view.webContents.loadURL(SITE_MAP[theme]);
+  setupViewEvents(view, site);
+  view.webContents.loadURL(config.url[site]);
 
   // Auto-select the matching theme button once the site has rendered
   view.webContents.once('did-finish-load', () => {
-    autoSelectTheme(view, THEME_LABELS[theme]);
+    autoSelectTheme(view, THEME_LABELS[site]);
     
     // Fix chat close button
     if (!process.env.DISABLE_CUSTOM_TITLEBAR) view.webContents.executeJavaScript(`
@@ -300,18 +275,18 @@ function getOrCreateView(theme) {
   if (!process.env.DISABLE_CUSTOM_TITLEBAR) {
     view.webContents.on('devtools-opened', () => {
       if (titlebarView) {
-        mainWindow.contentView.removeChildView(titlebarView);
+        mainWindow?.contentView.removeChildView(titlebarView);
       }
     });
     view.webContents.on('devtools-closed', () => {
       if (titlebarView) {
-        mainWindow.contentView.removeChildView(titlebarView);
-        mainWindow.contentView.addChildView(titlebarView);
+        mainWindow?.contentView.removeChildView(titlebarView);
+        mainWindow?.contentView.addChildView(titlebarView);
       }
     });
   }
 
-  views[theme] = view;
+  views[site] = view;
   return view;
 }
 
@@ -334,14 +309,14 @@ function updateViewBounds() {
 /**
  * Switch the visible site without reloading — preserves login state
  */
-function switchToSite(theme) {
+function switchToSite(site: Site) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
-  const view = getOrCreateView(theme);
+  const view = getOrCreateView(site);
   if (view === currentView) return;
 
-  saveState({ lastSite: theme });
-  discordManager?.updateSite(theme);
+  saveState({ lastSite: site });
+  discordManager?.updateSite(site);
 
   if (currentView) {
     // Pause audio, clear cache, and destroy the old view to free RAM
@@ -372,11 +347,11 @@ function switchToSite(theme) {
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: config.WINDOW.WIDTH,
-    height: config.WINDOW.HEIGHT,
-    minWidth: config.WINDOW.MIN_WIDTH,
-    minHeight: config.WINDOW.MIN_HEIGHT,
-    backgroundColor: config.WINDOW.BACKGROUND_COLOR,
+    width: config.window.width,
+    height: config.window.height,
+    minWidth: config.window.minWidth,
+    minHeight: config.window.minHeight,
+    backgroundColor: config.window.backgroundColor,
     frame: false,
     autoHideMenuBar: true,
     icon: iconPath
@@ -386,7 +361,7 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   
   // Enable DevTools if env var is set
-  if (process.env.DEVTOOLS) mainWindow.setMenu(Menu.buildFromTemplate([{
+  if (isDev) mainWindow.setMenu(Menu.buildFromTemplate([{
     label: "View", submenu: [{
       label: "Toggle DevTools",
       accelerator: process.platform == "darwin" ? "Cmd+Shift+I" : "Ctrl+Shift+I",
@@ -403,13 +378,13 @@ function createWindow() {
       }
     });
     titlebarView.setBackgroundColor('#00000000');
-    titlebarView.webContents.loadFile(path.join(__dirname, 'titlebar.html'));
+    titlebarView.webContents.loadFile(getAssetPath('titlebar.html'));
     mainWindow.contentView.addChildView(titlebarView);
     
     // Send initial state once titlebar has loaded
     titlebarView.webContents.once('did-finish-load', () => {
       if (mainWindow && !mainWindow.isDestroyed()) {
-        titlebarView.webContents.send('titlebar-maximize-change', mainWindow.isMaximized());
+        titlebarView?.webContents.send('titlebar-maximize-change', mainWindow.isMaximized());
       }
     });
     
@@ -424,11 +399,11 @@ function createWindow() {
         titlebarView.webContents.send('titlebar-maximize-change', false);
       }
     });
-  } else titlebarView = null; // Use native titlebar if one wasnt advertised
+  } else titlebarView = undefined; // Use native titlebar if one wasnt advertised
 
   // Load the last-used site, defaulting to neuro
   const { lastSite } = loadState();
-  const initialTheme = SITE_MAP[lastSite] ? lastSite : 'neuro';
+  const initialTheme = config.url[lastSite] ? lastSite : 'neuro';
   switchToSite(initialTheme);
 
   // Keep the active view filling the window on resize
@@ -439,12 +414,12 @@ function createWindow() {
   mainWindow.on('close', (event) => {
     if (!isQuitting && closeToTray && trayAvailable) {
       event.preventDefault();
-      mainWindow.hide();
+      mainWindow?.hide();
     }
   });
 
   mainWindow.on('closed', () => {
-    mainWindow = null;
+    mainWindow = undefined;
   });
 
   return mainWindow;
@@ -478,7 +453,7 @@ function setupIpcHandlers() {
 
       // Fetch playlist data
       try {
-        await apiClient.fetchPlaylist(playlistId);
+        await apiClient?.fetchPlaylist(playlistId);
       } catch (error) {
         console.error('Failed to fetch playlist:', error);
       }
@@ -494,7 +469,7 @@ function setupIpcHandlers() {
         ? `${songInfo.title} - ${songInfo.artist}`
         : songInfo.title;
 
-      mainWindow.setTitle(`${displayTitle} - ${config.APP.NAME}`);
+      mainWindow.setTitle(`${displayTitle} - ${config.app.name}`);
       trayManager?.updateTooltip(displayTitle);
       discordManager?.updateSong(songInfo.title, songInfo.artist);
 
@@ -526,8 +501,8 @@ function setupIpcHandlers() {
         }
       }
     } else {
-      mainWindow.setTitle(config.APP.NAME);
-      trayManager?.updateTooltip(config.APP.NAME);
+      mainWindow.setTitle(config.app.name);
+      trayManager?.updateTooltip(config.app.name);
       discordManager?.updateSong('', '');
     }
   });
@@ -624,20 +599,20 @@ async function initialize() {
   // Show splash and check for updates before creating the main window.
   // If an update is downloaded, the app restarts — this code won't continue.
   const { lastSite } = loadState();
-  const theme = SITE_MAP[lastSite] ? lastSite : 'neuro';
-  await runSplashUpdater(theme, iconPath);
+  const theme = config.url[lastSite] ? lastSite : 'neuro';
+  await runSplashUpdater(theme !== "test" ? theme : "neuro", iconPath);
 
   createWindow();
 
   trayManager = new TrayManager(iconPath);
   try {
-    trayManager.create(mainWindow, handleQuit, switchToSite, () => {
+    trayManager.create(mainWindow!, handleQuit, switchToSite, () => {
       if (currentView && !currentView.webContents.isDestroyed()) {
         currentView.webContents.reloadIgnoringCache();
       }
-    }, closeToTray, (value) => {
+    }, closeToTray, (value: boolean) => {
       setCloseToTray(value);
-      trayManager.setCloseToTray(value);
+      trayManager?.setCloseToTray(value);
     });
     trayAvailable = trayManager.isAvailable();
   } catch (error) {
@@ -652,7 +627,7 @@ async function initialize() {
   setupIpcHandlers();
 
   // Initialize Discord RPC (non-blocking)
-  discordManager = new DiscordManager(config.DISCORD_CLIENT_ID);
+  discordManager = new DiscordManager(config.discordClientId);
   discordManager.init().catch((error) => {
     console.error('Discord RPC initialization failed:', error);
   });

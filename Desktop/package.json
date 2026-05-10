@@ -4,7 +4,7 @@
   "version": "1.6.0",
   "description": "Desktop wrapper for neurokaraoke.com with media controls and tray support",
   "homepage": "https://neurokaraoke.com",
-  "main": "main.js",
+  "main": "dist/tsc/main.js",
   "author": {
     "name": "aferil",
     "email": "aferil@aferil.cc"
@@ -25,6 +25,7 @@
     "electron"
   ],
   "devDependencies": {
+    "@types/semver": "^7.7.1",
     "electron": "^40.0.0",
     "electron-builder": "^26.4.0"
   },
@@ -34,16 +35,7 @@
     "artifactName": "${productName}-${version}-${arch}.${ext}",
     "asar": true,
     "files": [
-      "main.js",
-      "preload.js",
-      "config.js",
-      "discord-manager.js",
-      "tray-manager.js",
-      "neurokaraoke-api.js",
-      "auto-updater.js",
-      "splash.html",
-      "titlebar.html",
-      "package.json",
+      "dist/tsc/**/*.js",
       "assets/**/*"
     ],
     "directories": {
@@ -116,7 +108,9 @@
     "register-scheme": "0.0.2"
   },
   "dependencies": {
+    "@types/lodash": "^4.17.24",
     "discord-rpc": "^4.0.1",
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "lodash": "^4.18.1"
   }
 }
