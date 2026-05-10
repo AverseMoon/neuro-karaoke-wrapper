@@ -1,16 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
     <cloud-backup>
-        <!-- Exclude auth tokens and playback state from cloud backup -->
-        <exclude domain="sharedpref" path="neurokaraoke_auth.xml"/>
-        <exclude domain="sharedpref" path="playback_state.xml"/>
-        <!-- Allow equalizer settings to sync across devices -->
-        <include domain="sharedpref" path="equalizer_prefs.xml"/>
+        <exclude domain="sharedpref" path="neurokaraoke_auth"/>
+        <exclude domain="sharedpref" path="playback_state"/>
     </cloud-backup>
     <device-transfer>
-        <!-- Exclude auth tokens on device transfer; user must sign in again -->
-        <exclude domain="sharedpref" path="neurokaraoke_auth.xml"/>
-        <exclude domain="sharedpref" path="playback_state.xml"/>
-        <include domain="sharedpref" path="equalizer_prefs.xml"/>
+        <exclude domain="sharedpref" path="neurokaraoke_auth"/>
+        <exclude domain="sharedpref" path="playback_state"/>
     </device-transfer>
 </data-extraction-rules>
