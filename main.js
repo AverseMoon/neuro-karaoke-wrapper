@@ -153,7 +153,7 @@ function setupViewEvents(view, theme) {
     'cn.neurokaraoke.com',
     'discord.com', 'www.discord.com'
   ]);
-  if (isDev) allowedHostnames.add('test.neurokaraoke.com');
+
 
   const isSafeExternalUrl = (u) => {
     try {
