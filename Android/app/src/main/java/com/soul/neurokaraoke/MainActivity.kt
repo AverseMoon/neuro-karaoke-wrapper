@@ -37,6 +37,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // On AAOS the phone UI makes no sense — hand off to the car Compose UI.
+        if (packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_AUTOMOTIVE)) {
+            startActivity(android.content.Intent(this, com.soul.neurokaraoke.aaos.AaosLauncherActivity::class.java))
+            finish()
+            return
+        }
         enableEdgeToEdge()
 
         // Check if first-time setup is needed
@@ -80,9 +86,10 @@ class MainActivity : ComponentActivity() {
                     }
 
                     // Update dialog
-                    if (updateState.showDialog && updateState.latestRelease != null) {
+                    if (updateState.showDialog) {
+                        updateState.latestRelease?.let { release ->
                         UpdateDialog(
-                            release = updateState.latestRelease!!,
+                            release = release,
                             currentVersion = updateState.currentVersion,
                             onUpdate = {
                                 updateViewModel.getUpdateIntent()?.let { intent ->
@@ -103,6 +110,7 @@ class MainActivity : ComponentActivity() {
                                 updateViewModel.dismissUpdate()
                             }
                         )
+                        } // end latestRelease?.let
                     }
                 }
             }
