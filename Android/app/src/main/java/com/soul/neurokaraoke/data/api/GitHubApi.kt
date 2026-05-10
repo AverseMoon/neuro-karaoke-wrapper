@@ -27,8 +27,7 @@ data class GitHubRelease(
      * Get the APK download URL if available, otherwise return the release page URL
      */
     fun getDownloadUrl(): String {
-        val apkAsset = assets.find { it.name == "Neuro.Karaoke.Player.apk" }
-            ?: assets.find { it.name.endsWith(".apk") && !it.name.contains("Automotive", ignoreCase = true) }
+        val apkAsset = assets.find { it.name.endsWith(".apk") }
         return apkAsset?.downloadUrl ?: htmlUrl
     }
 
