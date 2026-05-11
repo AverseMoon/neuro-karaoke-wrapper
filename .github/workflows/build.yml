@@ -16,6 +16,8 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    env: 
+      GYP_MSVS_VERSION: 2022
     strategy:
       fail-fast: false
       matrix:
@@ -46,11 +48,6 @@ jobs:
       - name: Setup MSVC Build Tools
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
-
-      - name: Set Visual Studio version
-        if: runner.os == 'Windows'
-        env: 
-          GYP_MSVS_VERSION: 2022
       
       - name: Setup Node
         uses: actions/setup-node@v6
