@@ -81,10 +81,10 @@ jobs:
         with:
           name: dist-Linux-${{ matrix.arch }}
           path: |
-            dist/*.deb
-            dist/*.AppImage
-            dist/*.rpm
-            dist/*.flatpak
+            Desktop/dist/*.deb
+            Desktop/dist/*.AppImage
+            Desktop/dist/*.rpm
+            Desktop/dist/*.flatpak
           if-no-files-found: error
 
       - name: Upload macOS artifacts
@@ -93,8 +93,8 @@ jobs:
         with:
           name: dist-macOS-${{ matrix.arch }}
           path: |
-            dist/*.dmg
-            dist/**/*.zip
+            Desktop/dist/*.dmg
+            Desktop/dist/**/*.zip
           if-no-files-found: error
 
       - name: Upload Windows artifacts
@@ -102,7 +102,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: dist-Windows-${{ matrix.arch }}
-          path: dist/*.exe
+          path: Desktop/dist/*.exe
           if-no-files-found: error
 
   build-android:
