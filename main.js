@@ -7,6 +7,7 @@ const TrayManager = require('./tray-manager');
 const NeuroKaraokeAPI = require('./neurokaraoke-api');
 const { runSplashUpdater } = require('./auto-updater');
 
+// Just adding a comment cause stupid draft-release wont work like I want to :)
 // Lock colour profile to sRGB to prevent oversaturation after long sessions
 // (Chromium GPU colour-management can drift over extended uptime)
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
