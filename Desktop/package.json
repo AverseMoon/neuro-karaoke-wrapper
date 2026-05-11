@@ -27,7 +27,8 @@
   "devDependencies": {
     "@types/semver": "^7.7.1",
     "electron": "^40.0.0",
-    "electron-builder": "^26.4.0"
+    "electron-builder": "^26.4.0",
+    "typescript": "^6.0.3"
   },
   "build": {
     "appId": "com.neurokaraoke.app",
