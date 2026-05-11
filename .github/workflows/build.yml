@@ -16,8 +16,6 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    env: 
-      GYP_MSVS_VERSION: 2022
     strategy:
       fail-fast: false
       matrix:
@@ -28,7 +26,7 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
-          - os: windows-latest
+          - os: windows-2022
             platform: win
             arch: x64
           - os: macos-latest
