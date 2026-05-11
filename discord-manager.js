@@ -72,7 +72,6 @@ class DiscordManager {
       this.songStartTime = Date.now();
       this.songElapsed = 0;
       this.pausedElapsed = 0;
-      this.songUrl = null; // Reset so we don't show previous song's link
       this.albumArtUrl = null; // Reset album art for new song
       this.albumArtText = null; // Reset album art credit
       this.albumArtCredit = null;
