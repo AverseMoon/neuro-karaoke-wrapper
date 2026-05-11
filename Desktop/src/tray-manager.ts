@@ -1,34 +1,40 @@
-const { Tray, Menu, app, BrowserWindow, nativeImage } = require('electron');
+import { Tray, Menu, app, BrowserWindow, nativeImage, NativeImage } from 'electron';
+import { ChangeSiteFunction, CloseToTrayFunction } from './main';
 
 /**
  * Manages system tray icon and menu
  */
-class TrayManager {
-  constructor(iconPath) {
+export class TrayManager {
+  iconPath: string;
+  
+  tray?: Tray;
+  mainWindow?: BrowserWindow;
+  closeToTray: boolean = false;
+  
+  sleepTimer?: NodeJS.Timeout;
+  sleepEndTime?: number;
+  sleepTickInterval?: NodeJS.Timeout;
+  
+  onToggleCloseToTray?: CloseToTrayFunction;
+  onSwitchSite?: ChangeSiteFunction;
+  onRefresh?: VoidFunction;
+  onQuit?: VoidFunction;
+  
+  constructor(iconPath: string) {
     this.iconPath = iconPath;
-    this.tray = null;
-    this.mainWindow = null;
-    this.onQuit = null;
-    this.sleepTimer = null;
-    this.sleepEndTime = null;
-    this.sleepTickInterval = null;
-    this.onSwitchSite = null;
-    this.onRefresh = null;
-    this.closeToTray = false;
-    this.onToggleCloseToTray = null;
   }
 
   /**
    * Create the system tray icon
    */
-  create(mainWindow, onQuit, onSwitchSite = null, onRefresh = null, closeToTray = false, onToggleCloseToTray = null) {
+  create(mainWindow: BrowserWindow, onQuit: VoidFunction, onSwitchSite: ChangeSiteFunction, onRefresh: VoidFunction, closeToTray: boolean, onToggleCloseToTray: CloseToTrayFunction) {
     this.mainWindow = mainWindow;
     this.onQuit = onQuit;
     this.onSwitchSite = onSwitchSite;
     this.onRefresh = onRefresh;
     this.closeToTray = closeToTray;
     this.onToggleCloseToTray = onToggleCloseToTray;
-    let icon = this.iconPath;
+    let icon: string | NativeImage = this.iconPath;
     if (process.platform === 'darwin') {
       const img = nativeImage.createFromPath(this.iconPath);
       icon = img.resize({ width: 16, height: 16 });
@@ -55,7 +61,7 @@ class TrayManager {
    * Build/rebuild the tray context menu
    */
   rebuildMenu() {
-    const sleepActive = this.sleepTimer !== null;
+    const sleepActive = !!this.sleepTimer;
     const remainingLabel = sleepActive ? this.formatRemaining() : null;
 
     const sleepSubmenu = [
@@ -71,7 +77,7 @@ class TrayManager {
     if (sleepActive) {
       sleepSubmenu.push(
         { type: 'separator' },
-        { label: `${remainingLabel} remaining`, enabled: false },
+        { label: `${remainingLabel} remaining`, enabled: false } as any,
         { label: 'Cancel timer', click: () => this.cancelSleepTimer() }
       );
     }
@@ -99,7 +105,14 @@ class TrayManager {
           {
             label: 'Smocus',
             click: () => { this.showWindow(); this.onSwitchSite?.('smocus'); }
-          }
+          },
+          ...(process.env.DEVTOOLS !== undefined ? [
+            { type: 'separator' },
+            {
+              label: 'Test Site (dev)',
+              click: () => { this.showWindow(); this.onSwitchSite?.('test'); }
+            }
+          ] : []) as any
         ]
       },
       {
@@ -117,25 +130,25 @@ class TrayManager {
       { type: 'separator' },
       {
         label: 'Exit',
-        click: () => this.onQuit()
+        click: () => this.onQuit!()
       }
     ]);
 
-    this.tray.setContextMenu(contextMenu);
+    this.tray?.setContextMenu(contextMenu);
   }
 
   /**
    * Start a sleep timer
    */
-  startSleepTimer(minutes) {
+  startSleepTimer(minutes: number) {
     this.cancelSleepTimer();
 
     this.sleepEndTime = Date.now() + (minutes * 60 * 1000);
 
     this.sleepTimer = setTimeout(() => {
       this.pausePlayback();
-      this.sleepTimer = null;
-      this.sleepEndTime = null;
+      this.sleepTimer = undefined;
+      this.sleepEndTime = undefined;
       this.stopTickInterval();
       this.rebuildMenu();
     }, minutes * 60 * 1000);
@@ -154,8 +167,8 @@ class TrayManager {
   cancelSleepTimer() {
     if (this.sleepTimer) {
       clearTimeout(this.sleepTimer);
-      this.sleepTimer = null;
-      this.sleepEndTime = null;
+      this.sleepTimer = undefined;
+      this.sleepEndTime = undefined;
     }
     this.stopTickInterval();
     this.rebuildMenu();
@@ -167,7 +180,7 @@ class TrayManager {
   stopTickInterval() {
     if (this.sleepTickInterval) {
       clearInterval(this.sleepTickInterval);
-      this.sleepTickInterval = null;
+      this.sleepTickInterval = undefined;
     }
   }
 
@@ -299,7 +312,7 @@ class TrayManager {
   /**
    * Update tray tooltip text
    */
-  updateTooltip(text) {
+  updateTooltip(text: string) {
     if (this.tray) {
       this.tray.setToolTip(text);
     }
@@ -308,7 +321,7 @@ class TrayManager {
   /**
    * Set close to tray setting and rebuild menu
    */
-  setCloseToTray(value) {
+  setCloseToTray(value: boolean) {
     this.closeToTray = value;
     if (this.tray) this.rebuildMenu();
   }
@@ -318,7 +331,7 @@ class TrayManager {
    * Note: On some Linux DEs (GNOME 3+), tray may be created but not visible
    */
   isAvailable() {
-    return this.tray !== null && !this.tray.isDestroyed();
+    return !!this.tray && !this.tray?.isDestroyed();
   }
 
   /**
@@ -328,9 +341,7 @@ class TrayManager {
     this.cancelSleepTimer();
     if (this.tray) {
       this.tray.destroy();
-      this.tray = null;
+      this.tray = undefined;
     }
   }
 }
-
-module.exports = TrayManager;

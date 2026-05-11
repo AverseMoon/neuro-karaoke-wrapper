@@ -1,6 +1,7 @@
-const { BrowserWindow } = require('electron');
-const { autoUpdater } = require('electron-updater');
-const path = require('path');
+import { BrowserWindow } from 'electron';
+import { autoUpdater } from 'electron-updater';
+import { Theme } from './main';
+import { getAssetPath } from './util';
 
 const LOADING_IMAGES = {
   neuro: [
@@ -36,8 +37,8 @@ const MIN_SPLASH_MS = 2000;
  * @param {string} iconPath - path to the app icon
  * @returns {Promise<boolean>} true if app should continue to main window
  */
-function runSplashUpdater(theme, iconPath) {
-  return new Promise((resolve) => {
+export function runSplashUpdater(theme: Theme, iconPath: string): Promise<boolean> {
+  if (!process.env.DISABLE_AUTOUPDATE) return new Promise((resolve) => {
     const splashWindow = new BrowserWindow({
       width: 400,
       height: 300,
@@ -54,7 +55,7 @@ function runSplashUpdater(theme, iconPath) {
       },
     });
 
-    splashWindow.loadFile(path.join(__dirname, 'splash.html'));
+    splashWindow.loadFile(getAssetPath('splash.html'));
 
     const splashOpenedAt = Date.now();
 
@@ -66,13 +67,13 @@ function runSplashUpdater(theme, iconPath) {
       splashWindow.webContents.send('splash-loading-url', randomImage);
     });
 
-    function setStatus(text) {
+    function setStatus(text: string) {
       if (!splashWindow.isDestroyed()) {
         splashWindow.webContents.send('splash-status', text);
       }
     }
 
-    function setProgress(percent) {
+    function setProgress(percent: number) {
       if (!splashWindow.isDestroyed()) {
         splashWindow.webContents.send('splash-progress', percent);
       }
@@ -148,6 +149,6 @@ function runSplashUpdater(theme, iconPath) {
       closeSplashAndContinue();
     });
   });
-}
 
-module.exports = { runSplashUpdater };
+  return Promise.resolve(true);
+}

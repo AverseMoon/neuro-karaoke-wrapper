@@ -26,7 +26,7 @@ jobs:
           - os: ubuntu-24.04-arm
             platform: linux
             arch: arm64
-          - os: windows-latest
+          - os: windows-2022
             platform: win
             arch: x64
           - os: macos-latest
@@ -35,15 +35,24 @@ jobs:
     permissions:
       contents: read
 
+    defaults:
+      run:
+        working-directory: ./Desktop
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup MSVC Build Tools
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+      
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: yarn
+          cache-dependency-path: Desktop/yarn.lock
 
       - name: Install Linux build deps
         if: runner.os == 'Linux'
@@ -56,8 +65,9 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build
-        run: yarn build:${{ matrix.platform }} --publish=never
-
+        run: |
+            yarn tsc
+            yarn build:${{ matrix.platform }} --publish=never
 
       - name: Zip macOS .app bundles
         if: runner.os == 'macOS'
@@ -75,10 +85,10 @@ jobs:
         with:
           name: dist-Linux-${{ matrix.arch }}
           path: |
-            dist/*.deb
-            dist/*.AppImage
-            dist/*.rpm
-            dist/*.flatpak
+            Desktop/dist/*.deb
+            Desktop/dist/*.AppImage
+            Desktop/dist/*.rpm
+            Desktop/dist/*.flatpak
           if-no-files-found: error
 
       - name: Upload macOS artifacts
@@ -87,8 +97,8 @@ jobs:
         with:
           name: dist-macOS-${{ matrix.arch }}
           path: |
-            dist/*.dmg
-            dist/**/*.zip
+            Desktop/dist/*.dmg
+            Desktop/dist/**/*.zip
           if-no-files-found: error
 
       - name: Upload Windows artifacts
@@ -96,7 +106,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: dist-Windows-${{ matrix.arch }}
-          path: dist/*.exe
+          path: Desktop/dist/*.exe
           if-no-files-found: error
 
   build-android:
