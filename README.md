@@ -12,33 +12,37 @@ Check [wiki](https://github.com/AferilVT/neuro-karaoke-wrapper/wiki) for API doc
 ### Desktop
 <details>
   <summary>Click to expand!</summary>
-- **System Tray Integration** — Minimize to tray, single-click to show/hide
-- **Media Key Support** — Control playback with your keyboard's media keys
-- **Always on Top** — Pin the window above other applications
-- **Song Title Detection** — Shows current song in window title and tray tooltip
-- **Discord Rich Presence** — Shows your current song as an activity in Discord (requires login with Discord)
-- **Auto-Updater** — Automatic update detection with splash screen and progress bar
+  <ul>
+    <li><strong>System Tray Integration</strong> — Minimize to tray, single-click to show/hide</li>
+    <li><strong>Media Key Support</strong> — Control playback with your keyboard's media keys</li>
+    <li><strong>Always on Top</strong> — Pin the window above other applications</li>
+    <li><strong>Song Title Detection</strong> — Shows current song in window title and tray tooltip</li>
+    <li><strong>Discord Rich Presence</strong> — Shows your current song as an activity in Discord (requires login with Discord)</li>
+    <li><strong>Auto-Updater</strong> — Automatic update detection with splash screen and progress bar</li>
+  </ul>
 </details>
 
 ### Android
 <details>
   <summary>Click to expand!</summary>
-- **Browse Setlists & Playlists** — Grid view with 2x2 cover previews, detailed playlist screens
-- **Search All Songs** — Search across all playlists with real-time results
-- **Media Playback** — Background playback with lock screen controls and media notifications
-- **Queue Management** — View and interact with the playback queue
-- **Synced Lyrics** — Auto-scrolling lyrics from NeuroKaraoke API with lrclib.net fallback
-- **Audio Caching** — 500MB disk cache for smooth offline-capable playback
-- **Equalizer & Bass Boost** — 5-band EQ with presets (Normal, Bass, Rock, Pop, Jazz, Classical)
-- **User Playlists** — Create custom playlists, add/remove songs, play all or shuffle
-- **Artists Browser** — Browse songs by original artist, sorted by cover count, with Last.fm images
-- **Library Tab** — Favorites, Playlists, and Downloads unified in one screen with user profile
-- **Local Music** — Import and play .mp3 files from your device
-- **Settings** — Crossfade, gapless playback, volume normalization, autoplay
-- **Download Notifications** — Progress and completion notifications for song downloads
-- **Playback Persistence** — Remembers last played song and position across app restarts
-- **Theme Support** — Neuro (cyan), Evil (pink), Duet (purple), and Auto (switches based on current song)
-- **Discord Sign-in** — OAuth2 authentication with token exchange
+  <ul>
+    <li><strong>Browse Setlists &amp; Playlists</strong> — Grid view with 2x2 cover previews, detailed playlist screens</li>
+    <li><strong>Search All Songs</strong> — Search across all playlists with real-time results</li>
+    <li><strong>Media Playback</strong> — Background playback with lock screen controls and media notifications</li>
+    <li><strong>Queue Management</strong> — View and interact with the playback queue</li>
+    <li><strong>Synced Lyrics</strong> — Auto-scrolling lyrics from NeuroKaraoke API with lrclib.net fallback</li>
+    <li><strong>Audio Caching</strong> — 500MB disk cache for smooth offline-capable playback</li>
+    <li><strong>Equalizer &amp; Bass Boost</strong> — 5-band EQ with presets (Normal, Bass, Rock, Pop, Jazz, Classical)</li>
+    <li><strong>User Playlists</strong> — Create custom playlists, add/remove songs, play all or shuffle</li>
+    <li><strong>Artists Browser</strong> — Browse songs by original artist, sorted by cover count, with Last.fm images</li>
+    <li><strong>Library Tab</strong> — Favorites, Playlists, and Downloads unified in one screen with user profile</li>
+    <li><strong>Local Music</strong> — Import and play .mp3 files from your device</li>
+    <li><strong>Settings</strong> — Crossfade, gapless playback, volume normalization, autoplay</li>
+    <li><strong>Download Notifications</strong> — Progress and completion notifications for song downloads</li>
+    <li><strong>Playback Persistence</strong> — Remembers last played song and position across app restarts</li>
+    <li><strong>Theme Support</strong> — Neuro (cyan), Evil (pink), Duet (purple), and Auto (switches based on current song)</li>
+    <li><strong>Discord Sign-in</strong> — OAuth2 authentication with token exchange</li>
+  </ul>
 </details>
 
 ## Installation
