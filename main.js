@@ -11,9 +11,6 @@ const { runSplashUpdater } = require('./auto-updater');
 // (Chromium GPU colour-management can drift over extended uptime)
 app.commandLine.appendSwitch('force-color-profile', 'srgb');
 
-/** @type {boolean} */
-const isDev = !app.isPackaged;
-
 // Custom titlebar height in pixels
 /** @type {number} */
 const TITLEBAR_HEIGHT = 32;
@@ -50,8 +47,7 @@ let currentView = null;
 const SITE_MAP = {
   neuro: config.URL.NEURO,
   evil: config.URL.EVIL,
-  smocus: config.URL.SMOCUS,
-  ...(isDev && { test: config.URL.TEST })
+  smocus: config.URL.SMOCUS
 };
 
 // Set app ID for Windows taskbar grouping
@@ -153,7 +149,6 @@ function setupViewEvents(view, theme) {
     'cn.neurokaraoke.com',
     'discord.com', 'www.discord.com'
   ]);
-
 
   const isSafeExternalUrl = (u) => {
     try {

@@ -99,14 +99,7 @@ class TrayManager {
           {
             label: 'Smocus',
             click: () => { this.showWindow(); this.onSwitchSite?.('smocus'); }
-          },
-          ...(!app.isPackaged ? [
-            { type: 'separator' },
-            {
-              label: 'Test Site (dev)',
-              click: () => { this.showWindow(); this.onSwitchSite?.('test'); }
-            }
-          ] : [])
+          }
         ]
       },
       {
