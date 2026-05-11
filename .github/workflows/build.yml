@@ -65,9 +65,7 @@ jobs:
         run: yarn install --frozen-lockfile
 
       - name: Build
-        run: |
-            yarn tsc
-            yarn build:${{ matrix.platform }} --publish=never
+        run: yarn build:${{ matrix.platform }} --publish=never
 
       - name: Zip macOS .app bundles
         if: runner.os == 'macOS'

@@ -11,12 +11,12 @@
   },
   "license": "MIT",
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder",
-    "build:win": "electron-builder --win",
-    "build:linux": "electron-builder --linux",
-    "build:linux:docker": "bash scripts/build-linux-docker.sh",
-    "build:mac": "electron-builder --mac"
+    "build:pre": "yarn tsc",
+    "start": "yarn build:pre && yarn electron .",
+    "build": "yarn build:pre && yarn electron-builder",
+    "build:win": "yarn build:pre && yarn electron-builder --win",
+    "build:linux": "yarn build:pre && yarn electron-builder --linux",
+    "build:mac": "yarn build:pre && yarn electron-builder --mac"
   },
   "keywords": [
     "karaoke",

@@ -106,7 +106,7 @@ export class TrayManager {
             label: 'Smocus',
             click: () => { this.showWindow(); this.onSwitchSite?.('smocus'); }
           },
-          ...(process.env.DEVTOOLS !== undefined ? [
+          ...(process.env.TEST_SITE_LINK !== undefined ? [
             { type: 'separator' },
             {
               label: 'Test Site (dev)',
