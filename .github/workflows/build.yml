@@ -48,6 +48,7 @@ jobs:
         with:
           node-version: 22
           cache: yarn
+          cache-dependency-path: Desktop/yarn.lock
 
       - name: Install Linux build deps
         if: runner.os == 'Linux'
