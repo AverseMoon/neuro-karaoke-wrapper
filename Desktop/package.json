@@ -1,117 +1,15 @@
 {
-  "name": "neuro-karaoke-player",
-  "productName": "Neuro Karaoke Player",
-  "version": "1.6.0",
-  "description": "Desktop wrapper for neurokaraoke.com with media controls and tray support",
-  "homepage": "https://neurokaraoke.com",
-  "main": "dist/tsc/main.js",
-  "author": {
-    "name": "aferil",
-    "email": "aferil@aferil.cc"
-  },
-  "license": "MIT",
   "scripts": {
-    "build:pre": "yarn tsc",
-    "start": "yarn build:pre && yarn electron .",
-    "build": "yarn build:pre && yarn electron-builder",
-    "build:win": "yarn build:pre && yarn electron-builder --win",
-    "build:linux": "yarn build:pre && yarn electron-builder --linux",
-    "build:mac": "yarn build:pre && yarn electron-builder --mac"
+    "build": "tsc && node build.mjs"
   },
-  "keywords": [
-    "karaoke",
-    "neuro",
-    "desktop",
-    "electron"
-  ],
   "devDependencies": {
-    "@types/semver": "^7.7.1",
-    "electron": "^40.0.0",
-    "electron-builder": "^26.4.0",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-global-shortcut": "^2.3.1",
+    "@tauri-apps/plugin-opener": "^2.5.4",
+    "@types/jquery": "^4.0.0",
+    "esbuild": "^0.28.0",
+    "jquery": "^4.0.0",
     "typescript": "^6.0.3"
   },
-  "build": {
-    "appId": "com.neurokaraoke.app",
-    "productName": "Neuro Karaoke Player",
-    "artifactName": "${productName}-${version}-${arch}.${ext}",
-    "asar": true,
-    "files": [
-      "dist/tsc/**/*.js",
-      "assets/**/*"
-    ],
-    "directories": {
-      "buildResources": "assets",
-      "output": "dist"
-    },
-    "win": {
-      "icon": "assets/neurokaraoke.ico",
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ]
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "deleteAppDataOnUninstall": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Neuro Karaoke Player",
-      "menuCategory": "NeuroSama"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb",
-        "rpm",
-        "flatpak"
-      ],
-      "icon": "assets/neurokaraoke.png",
-      "category": "AudioVideo"
-    },
-    "flatpak": {
-      "runtime": "org.freedesktop.Platform",
-      "runtimeVersion": "24.08",
-      "sdk": "org.freedesktop.Sdk",
-      "base": "org.electronjs.Electron2.BaseApp",
-      "baseVersion": "24.08",
-      "finishArgs": [
-        "--share=ipc",
-        "--socket=x11",
-        "--socket=wayland",
-        "--socket=pulseaudio",
-        "--share=network",
-        "--device=dri",
-        "--talk-name=org.freedesktop.Notifications",
-        "--talk-name=org.kde.StatusNotifierWatcher",
-        "--own-name=org.kde.StatusNotifierItem-2-1"
-      ],
-      "useWaylandFlags": true
-    },
-    "mac": {
-      "target": [
-        "dmg"
-      ],
-      "icon": "assets/neurokaraoke.png",
-      "category": "public.app-category.music"
-    },
-    "publish": {
-      "provider": "github",
-      "owner": "aferilvt",
-      "repo": "neuro-karaoke-wrapper"
-    }
-  },
-  "resolutions": {
-    "register-scheme": "0.0.2"
-  },
-  "dependencies": {
-    "@types/lodash": "^4.17.24",
-    "discord-rpc": "^4.0.1",
-    "electron-updater": "^6.8.3",
-    "lodash": "^4.18.1"
-  }
+  "license": "MIT"
 }

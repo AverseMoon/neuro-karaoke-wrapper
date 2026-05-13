@@ -1,3 +1,5 @@
+# experimental branch using tauri instead of electron
+
 # Neuro Karaoke Player
 
 ![Page Views](https://count.getloli.com/get/@aferilvt:neuro-karaoke-wrapper?theme=booru-jaypee)

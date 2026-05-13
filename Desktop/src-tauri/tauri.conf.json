@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "neuro-karaoke-app",
+  "version": "0.1.0",
+  "identifier": "com.soul.neurokaraoke",
+  "build": {
+    "frontendDist": "../assets"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "headers": {},
+      "capabilities": [
+        {
+          "$schema": "../gen/schemas/desktop-schema.json",
+          "identifier": "default",
+          "description": "default",
+          "webviews": ["main"],
+          "remote": {
+            "urls": [
+              "https://neurokaraoke.com/*",
+              "https://evilkaraoke.com/*",
+              "https://twinskaraoke.com/*"
+            ]
+          },
+          "permissions": [
+            "core:default"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "../assets/icon.png",
+      "../assets/icon.ico",
+      "../assets/icon.icns"
+    ]
+  }
+}

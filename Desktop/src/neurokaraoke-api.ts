@@ -1,192 +1,90 @@
-import * as https from 'https';
+// readonly marked fields only means we will never set them (site has full control of setting them)
+// your implementation can use getters and setters
 
-export type PlaylistData = {
-  artCredit: string,
-  cover: string,
-  songs: any[],
+/** Playback-related things */
+export interface Player {
+    /** The currently playing song, or undefined */
+    readonly currentSong?: Song;
+    /** ID of currently playing playlist, or undefined */
+    readonly currentPlaylist?: string;
+
+    /** Whether shuffle is on or off */
+    shuffle: boolean;
+    /** Whether loop is on or off */
+    loop: boolean;
+    /** Volume */
+    volume: number;
+    /** Seconds since the start of the song */
+    time: number
+    /** Is there a song playing? */
+    playing: boolean;
+
+    /**
+     * Goes forward a song
+     *  @returns success
+     */
+    nextSong(): boolean;
+    /**
+     * Goes backward a song
+     * @returns success
+     */
+    lastSong(): boolean;
+}
+
+export interface NeuroKaraoke {
+    readonly player: Player;
+    /**
+     * Register an event listener
+     * @param event the event to listen to (eg. `player.volume`, `player`, `player.loop`, etc...)
+     * @param callback the function called when the event is fired
+     */
+    // events should be fired when a value is set, either by an external script, or by the site, with a name corresponding to what was set (eg. `player.volume`, `player`, `player.loop`, etc...)
+    // impl note: when emitting an event, you need to also emit all parents of that event (eg. 'player.volume' -> emit('player.volume') and emit('player'))
+    listen(event: string, callback: () => void): void;
+}
+
+// you can skim through everything after this comment and yell at me for not getting the api types right lol
+//----------------------------------------------------
+// stripped down versions of things u get from api calls
+// good enough for my purpose atm
+
+export type Song = {
+    id: string;
+    title: string;
+    duration: number;
+    coverArtists: string[];
+    originalArtists: string[];
+    coverArt: Art;
+    userUploaded: boolean;
 };
 
-/**
- * Client for Neuro Karaoke API
- */
-export default class NeuroKaraokeAPI {
-  baseUrl = 'https://idk.neurokaraoke.com';
-  cache: Map<string, PlaylistData> = new Map();
-  maxCacheSize = 10;
-  constructor() {
-  }
+export type Art = {
+    id: string;
+    fileName: string;
+    contentType: string;
 
-  /**
-   * Fetch playlist data
-   */
-  async fetchPlaylist(playlistId: string): Promise<PlaylistData> {
-    // Check cache first
-    if (this.cache.has(playlistId)) {
-      return this.cache.get(playlistId)!;
-    }
+    description: string | null;
+    credit: string | null;
 
-    return new Promise((resolve, reject) => {
-      const url = `${this.baseUrl}/public/playlist/${playlistId}`;
+    cloudflareId: string;
+    mediaStorageType: number;
+    absolutePath: string;
 
-      https.get(url, (res) => {
-        let data = '';
+    artist: Artist;
 
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
+    upvotes: number;
+    tagString: string;
+    mediaTag: number;
+};
 
-        res.on('end', () => {
-          try {
-            const playlist = JSON.parse(data);
-            // Evict oldest entry if cache is full
-            if (this.cache.size >= this.maxCacheSize) {
-              const oldestKey = this.cache.keys().next().value;
-              if (oldestKey) this.cache.delete(oldestKey);
-            }
-            this.cache.set(playlistId, playlist);
-            resolve(playlist);
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }).on('error', (error) => {
-        reject(error);
-      });
-    });
-  }
+export type Artist = {
+    id: string;
+    name: string;
+    socialLink: string | null;
+    userId: string | null;
+};
 
-  /**
-   * Find song in playlist by title
-   */
-  findSong(playlist: PlaylistData, title: string, artist: string) {
-    const songs = Array.isArray(playlist) ? playlist : (playlist && Array.isArray(playlist.songs) ? playlist.songs : null);
-    if (!songs) {
-      return null;
-    }
-
-    const normalize = (value: string) => {
-      if (!value || typeof value !== 'string') return '';
-      return value
-        .toLowerCase()
-        .normalize('NFKD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[''".,!?()[\]{}:;/-]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-
-    const toStr = (value: any | any[]) => {
-      if (Array.isArray(value)) return value.join(', ');
-      return String(value || '');
-    };
-
-    const titleNorm = normalize(title);
-    const artistNorm = normalize(artist);
-
-    let bestSong = null;
-    let bestScore = 0;
-
-    for (const song of songs) {
-      if (!song || !song.title) continue;
-
-      const songTitle = song.title;
-      const songTitleNorm = normalize(songTitle);
-      const coverArtistsNorm = normalize(toStr(song.coverArtists));
-      const originalArtistsNorm = normalize(toStr(song.originalArtists));
-
-      let score = 0;
-      if (title && songTitle.toLowerCase() === title.toLowerCase()) score += 3;
-      if (titleNorm && songTitleNorm === titleNorm) score += 2;
-      if (titleNorm && (songTitleNorm.includes(titleNorm) || titleNorm.includes(songTitleNorm))) score += 1;
-
-      if (artistNorm) {
-        if (coverArtistsNorm.includes(artistNorm)) score += 2;
-        if (originalArtistsNorm.includes(artistNorm)) score += 2;
-      } else {
-        score += 1; // no artist provided, allow title-only matches
-      }
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestSong = song;
-      }
-    }
-
-    return bestScore >= 3 ? bestSong : null;
-  }
-
-  /**
-   * Get cover art URL from audio path
-   */
-  getCoverArtUrl(audioPath: string) {
-    if (!audioPath) return null;
-
-    // Handle relative paths from the songs API (absolutePath field)
-    const fullUrl = audioPath.startsWith('http')
-      ? audioPath
-      : `https://storage.neurokaraoke.com/${audioPath}`;
-
-    const imageUrl = fullUrl
-      .replace('/audio/', '/images/')
-      .replace(/\.v\d+\)?\.mp3$/, '.jpg')
-      .replace(/\.mp3$/, '.jpg');
-
-    return imageUrl;
-  }
-
-  /**
-   * Get current playing song metadata
-   */
-  async getCurrentSongMetadata(playlistId: string, title: string, artist: string) {
-    try {
-      const playlist = await this.fetchPlaylist(playlistId);
-      const song = this.findSong(playlist, title, artist);
-
-      if (song) {
-        const playlistArtCredit = playlist && !Array.isArray(playlist) ? playlist.artCredit : null;
-        const playlistCover = playlist && !Array.isArray(playlist) ? playlist.cover : null;
-
-        const artCredit =
-          song.artCredit ||
-          song.artCreditText ||
-          song.coverArtCredit ||
-          song.artBy ||
-          song.artCreator ||
-          playlistArtCredit ||
-          null;
-
-        const audioPath = song.audioUrl || song.absolutePath || null;
-
-        const coverArtUrl =
-          song.coverArt ||
-          song.coverArtUrl ||
-          this.getCoverArtUrl(audioPath) ||
-          playlistCover ||
-          null;
-
-        const coverArtist = Array.isArray(song.coverArtists)
-          ? song.coverArtists.join(', ')
-          : (song.coverArtists || null);
-
-        const originalArtist = Array.isArray(song.originalArtists)
-          ? song.originalArtists.join(', ')
-          : (song.originalArtists || null);
-
-        return {
-          songId: song.id || song.songId || null,
-          title: song.title,
-          originalArtist,
-          coverArtist,
-          artCredit,
-          audioUrl: audioPath,
-          coverArtUrl
-        };
-      }
-
-      return null;
-    } catch (error) {
-      console.error('Failed to fetch song metadata:', error);
-      return null;
-    }
-  }
+// add to global `window` type
+declare global {
+    interface Window { neurokaraoke: NeuroKaraoke; }
 }
