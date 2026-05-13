@@ -83,8 +83,3 @@ export type Artist = {
     socialLink: string | null;
     userId: string | null;
 };
-
-// add to global `window` type
-declare global {
-    interface Window { neurokaraoke: NeuroKaraoke; }
-}

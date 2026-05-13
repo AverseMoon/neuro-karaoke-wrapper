@@ -1,10 +1,9 @@
 export {};
 
-interface NeuroKaraokeApp {
-    disable_decorations: boolean,
-    devtools: boolean,
-}
-
-declare global {
-    interface Window { neurokaraokeapp: NeuroKaraokeApp; }
+export interface NeuroKaraokeApp {
+    args: {
+        devtools: boolean;
+        enable_os_decorations: boolean;
+        disable_custom_controls: boolean;
+    };
 }

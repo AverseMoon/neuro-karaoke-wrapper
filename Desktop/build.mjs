@@ -7,4 +7,9 @@ await esbuild.build({
     platform: "browser",
     outfile: "dist/bundle.js",
     minify: true,
+    loader: {
+        ".txt": "text",
+        ".html": "text",
+        ".css": "text",
+    }
 });

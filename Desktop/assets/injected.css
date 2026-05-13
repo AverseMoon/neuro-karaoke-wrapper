@@ -1,0 +1,57 @@
+#tauri-window-controls {
+    position: fixed;
+    top: 0;
+    right: 0;
+    display: flex;
+    gap: 6px;
+    padding: 6px 8px;
+    opacity: 0;
+
+    border-bottom-left-radius: 12px;
+    border-bottom-width: 2px;
+    border-left-width: 2px;
+
+    transition:
+            opacity 150ms ease,
+            border-color 200ms ease,
+            transform 400ms ease;
+
+    z-index: 999999;
+}
+
+#tauri-window-controls:not(.tauri-ready) {
+    transform: translate(100%, -100%);
+}
+
+#tauri-window-controls.tauri-ready {
+    opacity: 1;
+}
+
+#tauri-window-controls.tauri-show-controls {
+    transform: translate(0px, 0px) !important;
+}
+
+#tauri-window-controls button {
+    transition: filter 200ms ease;
+}
+#tauri-window-controls button:hover {
+    filter: brightness(0.8);
+}
+
+#tauri-window-border {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+
+    border-width: 2px;
+    transition: border-color 200ms ease;
+
+    pointer-events: none;
+    z-index: 999998;
+}
+
+.tauri-hide-border {
+    border-color: transparent !important;
+}

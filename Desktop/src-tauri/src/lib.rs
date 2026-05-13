@@ -34,7 +34,7 @@ pub fn run() {
 
                 // program arg controlled parameters
                 .devtools(args.devtools)
-                .decorations(!args.disable_decorations)
+                .decorations(args.enable_os_decorations)
             ;
 
 

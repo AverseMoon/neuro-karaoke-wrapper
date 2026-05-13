@@ -25,7 +25,10 @@
             ]
           },
           "permissions": [
-            "core:default"
+            "core:default",
+            "core:window:allow-minimize",
+            "core:window:allow-close",
+            "core:window:allow-toggle-maximize"
           ]
         }
       ]
@@ -38,6 +41,9 @@
       "../assets/icon.png",
       "../assets/icon.ico",
       "../assets/icon.icns"
+    ],
+    "resources": [
+      "../assets/**/*"
     ]
   }
 }
