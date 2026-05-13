@@ -5,8 +5,17 @@ description = "Desktop wrapper for https://neurokaraoke.com/"
 authors = ["Soul", "Aferil", "AverseMoon"] # if you contribute, add your name here!
 edition = "2021"
 
+# speed up building on dev builds
 [profile.dev]
 incremental = true
+
+# make release builds as tiny as possible
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
 
 [lib]
 name = "neuro_karaoke_app_lib"
