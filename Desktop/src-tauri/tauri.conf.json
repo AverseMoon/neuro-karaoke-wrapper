@@ -20,15 +20,15 @@
           "remote": {
             "urls": [
               "https://neurokaraoke.com/*",
-              "https://evilkaraoke.com/*",
-              "https://twinskaraoke.com/*"
+              "https://*.neurokaraoke.com/*"
             ]
           },
           "permissions": [
             "core:default",
             "core:window:allow-minimize",
             "core:window:allow-close",
-            "core:window:allow-toggle-maximize"
+            "core:window:allow-toggle-maximize",
+            "core:window:allow-show"
           ]
         }
       ]

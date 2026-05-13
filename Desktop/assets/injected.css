@@ -55,3 +55,84 @@
 .tauri-hide-border {
     border-color: transparent !important;
 }
+
+#tauri-back-button {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    padding: 8px 12px;
+    font-size: 14px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #333;
+    color: white;
+    z-index: 999999;
+}
+
+#tauri-back-button:hover {
+    background: #555;
+}
+
+#tauri-ftue {
+    position: fixed;
+    left: 25vw;
+    top: 25vh;
+    width: 50vw;
+    height: 50vh;
+    z-index: 999997;
+    text-align: center;
+    border-radius: 24px;
+    border-width: 2px;
+
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#tauri-ftue-container {
+    display: block;
+}
+
+.tauri-darken-overlay {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    opacity: 0.3;
+    z-index: 99999;
+}
+
+#tauri-ftue-close-button {
+    font-size: 20px;
+    font-weight: bold;
+    padding: 12px 12px;
+    bottom: 12px;
+    position: static;
+    margin: 12px auto;
+    border-radius: 12px;
+
+    transition: filter 200ms ease;
+}
+
+#tauri-ftue-close-button:hover {
+    filter: brightness(0.8);
+}
+
+.tauri-separator {
+    width: 90%;
+    height: 2px;
+    margin: 10px auto;
+}
+
+.tauri-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 70px;
+}
+
+div.mud-nav-item a.mud-nav-link[href="/karaoke-app"] {
+    display: none !important;
+}
