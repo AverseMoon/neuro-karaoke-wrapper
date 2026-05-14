@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import splash from "./splash";
 // only ran on neurokaraoke.com
@@ -14,9 +13,11 @@ export default async function () {
         controls.id = "tauri-window-controls";
         controls.className = "theme-bg-secondary theme-border";
         controls.innerHTML = `
-            <button id="min-btn" class="theme-primary" onclick="window.__TAURI__.window.getCurrentWindow().minimize()">&minus;</button>
-            <button id="max-btn" class="theme-primary" onclick="window.__TAURI__.window.getCurrentWindow().toggleMaximize()">&#9633;</button>
-            <button id="close-btn" class="theme-primary" onclick="window.__TAURI__.window.getCurrentWindow().close()">&#10005;</button>
+            <div id="tauri-drag-btn" data-tauri-drag-region style="position: absolute; inset: 0;"></div>
+            <div style="width: 30px"></div>
+            <button id="tauri-min-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().minimize()">&minus;</button>
+            <button id="tauri-max-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().toggleMaximize()">&#9633;</button>
+            <button id="tauri-close-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().close()">&#10005;</button>
         `;
         document.body.prepend(controls);
         requestAnimationFrame(() => {
@@ -51,5 +52,4 @@ export default async function () {
     window.neurokaraoke.listen("player.shuffle", () => {
         console.log("player.shuffle state change");
     });
-    console.log(await invoke("greet", { name: "asdasdada" }));
 }

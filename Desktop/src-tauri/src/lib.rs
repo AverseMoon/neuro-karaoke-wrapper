@@ -10,12 +10,6 @@ mod sandbox;
 
 static ARGS: OnceLock<cli::Cli> = OnceLock::new();
 
-#[tauri::command]
-fn greet(name: &str) -> String {
-    println!("Hello, {}!", name);
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     ARGS.set(cli::Cli::parse()).unwrap();
@@ -55,7 +49,7 @@ pub fn run() {
         .plugin(tauri_plugin_prevent_default::Builder::new().with_flags(
             Flags::CONTEXT_MENU
         ).build())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![])
         .setup(|app| {
             let args = ARGS.get().unwrap();
             let handle = app.handle().clone();
