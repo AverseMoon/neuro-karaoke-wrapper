@@ -24,6 +24,7 @@
             ]
           },
           "permissions": [
+            "allow-custom-commands",
             "core:default",
             "core:window:allow-minimize",
             "core:window:allow-close",

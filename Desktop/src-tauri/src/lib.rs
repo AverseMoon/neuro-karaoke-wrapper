@@ -2,13 +2,19 @@ use std::{fs, io};
 use std::io::Write;
 use std::sync::OnceLock;
 use clap::Parser;
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{command, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::WindowEvent;
 use tauri_plugin_prevent_default::Flags;
 
 mod cli;
-mod sandbox;
+mod navigation;
 
 static ARGS: OnceLock<cli::Cli> = OnceLock::new();
+
+#[command]
+fn testcmd() {
+    println!("yay! it works!");
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -49,12 +55,11 @@ pub fn run() {
         .plugin(tauri_plugin_prevent_default::Builder::new().with_flags(
             Flags::CONTEXT_MENU
         ).build())
-        .invoke_handler(tauri::generate_handler![])
+        .invoke_handler(tauri::generate_handler![testcmd])
         .setup(|app| {
             let args = ARGS.get().unwrap();
             let handle = app.handle().clone();
-
-            let builder = WebviewWindowBuilder::new(
+            let main_window = WebviewWindowBuilder::new(
                 app,
                 "main",
                 WebviewUrl::External(
@@ -68,7 +73,7 @@ pub fn run() {
                 .visible(false)
 
                 // sandboxing
-                .on_navigation(move |url| sandbox::check_url(&handle, url))
+                .on_navigation(move |url| navigation::navigate_main(&handle, url))
 
                 // order matters! `window.neurokaraokeapp` must be initialized before bundle.js runs!
                 .initialization_script("window.neurokaraokeapp = {args:".to_owned()+&serde_json::to_string(args).unwrap()+"};")
@@ -77,10 +82,27 @@ pub fn run() {
                 // program arg controlled parameters
                 .devtools(args.devtools)
                 .decorations(args.enable_os_decorations)
-            ;
+            .build().expect("failed to build webview window");
 
+            // window for modals, like discord login
+            let handle = app.handle().clone();
+            let modal_window = WebviewWindowBuilder::new(
+                app,
+                "modal",
+                WebviewUrl::CustomProtocol("about:blank".parse().unwrap())
+            )
+                .title("Neuro Karaoke")
+                .on_navigation(move |url| navigation::navigate_modal(&handle, url))
+                .visible(false)
+                .build().expect("failed to build webview window");
 
-            let _webview = builder.build().expect("failed to build webview window");
+            let handle = app.handle().clone();
+            modal_window.on_window_event(move |event| {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    navigation::close_modal(&handle).unwrap();
+                }
+            });
 
             Ok(())
         });

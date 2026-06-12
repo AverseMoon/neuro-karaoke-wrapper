@@ -14,7 +14,7 @@ export default async function () {
         controls.className = "theme-bg-secondary theme-border";
         controls.innerHTML = `
             <div id="tauri-drag-btn" data-tauri-drag-region style="position: absolute; inset: 0;"></div>
-            <div style="width: 30px"></div>
+            <button class="theme-primary tauri-button" style="pointer-events: none;">&#10303;</button>
             <button id="tauri-min-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().minimize()">&minus;</button>
             <button id="tauri-max-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().toggleMaximize()">&#9633;</button>
             <button id="tauri-close-btn" class="theme-primary tauri-button" onclick="window.__TAURI__.window.getCurrentWindow().close()">&#10005;</button>

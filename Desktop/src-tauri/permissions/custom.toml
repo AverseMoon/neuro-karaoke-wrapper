@@ -1,0 +1,3 @@
+[[permission]]
+identifier = "allow-custom-commands"
+commands.allow = ["testcmd"] # put all your custom commands here
